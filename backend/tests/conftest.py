@@ -1,3 +1,13 @@
+import os
+
+# Set required env vars before any app import — pydantic Settings and
+# session.py's module-level engine creation both run at import time.
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
+os.environ.setdefault("KEYCLOAK_URL", "http://localhost:8080")
+os.environ.setdefault("KEYCLOAK_REALM", "sentinel")
+os.environ.setdefault("KEYCLOAK_CLIENT_ID", "sentinel-api")
+
 import uuid
 
 import pytest
