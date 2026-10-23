@@ -2,6 +2,7 @@
 import logging
 import uuid
 
+from app.core.config import get_settings
 from app.db.models import Leak
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,10 @@ def fetch_hibp_for_tenant(
 
     Returns count of breached findings published.
     """
+    settings = get_settings()
+    if not settings.leak_collector_enabled:
+        return 0
+
     _db = db
     _gen = None
     if _db is None:
