@@ -57,3 +57,44 @@ def test_correlation_events_resolved_at_nullable():
 
     col = Base.metadata.tables["correlation_events"].c["resolved_at"]
     assert col.nullable is True
+
+
+def _get_pg_conn():
+    """Return a psycopg connection or None if no Postgres available."""
+    import os
+    url = os.getenv("MIGRATION_DATABASE_URL", "")
+    if not url or "sqlite" in url:
+        return None
+    try:
+        import psycopg
+        return psycopg.connect(url)
+    except Exception:
+        return None
+
+
+@pytest.mark.integration
+def test_rls_on_correlation_events():
+    conn = _get_pg_conn()
+    if conn is None:
+        pytest.skip("No PostgreSQL available (set MIGRATION_DATABASE_URL)")
+    with conn:
+        cur = conn.execute(
+            "SELECT relrowsecurity FROM pg_class WHERE relname='correlation_events'"
+        )
+        row = cur.fetchone()
+    conn.close()
+    assert row is not None and row[0] is True
+
+
+@pytest.mark.integration
+def test_no_rls_on_vulnerabilities():
+    conn = _get_pg_conn()
+    if conn is None:
+        pytest.skip("No PostgreSQL available (set MIGRATION_DATABASE_URL)")
+    with conn:
+        cur = conn.execute(
+            "SELECT relrowsecurity FROM pg_class WHERE relname='vulnerabilities'"
+        )
+        row = cur.fetchone()
+    conn.close()
+    assert row is not None and row[0] is False
