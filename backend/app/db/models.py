@@ -72,6 +72,7 @@ class Software(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     version: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    cpe: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
@@ -116,6 +117,8 @@ class Vulnerability(Base):
     mitre_techniques: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     kev_date_added: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     epss_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # shortcut: NVD CPE configuration nodes stored as JSON; populated in Phase 2 from NVD API
+    cpe_nodes: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
 
 # ---------------------------------------------------------------------------
