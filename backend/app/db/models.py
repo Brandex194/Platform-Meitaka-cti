@@ -281,10 +281,12 @@ class ScoreRule(Base):
     weights: Mapped[dict] = mapped_column(
         JSON,
         default=lambda: {"severity": 0.45, "confidence": 0.27, "recency": 0.18, "epss": 0.10},
+        server_default='{"severity": 0.45, "confidence": 0.27, "recency": 0.18, "epss": 0.10}',
     )
     thresholds: Mapped[dict] = mapped_column(
         JSON,
         default=lambda: {"low": 0.2, "medium": 0.4, "high": 0.7},
+        server_default='{"low": 0.2, "medium": 0.4, "high": 0.7}',
     )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.db.models import Base
+from app.db.base import Base
 
 
 @pytest.fixture(scope="session")
@@ -19,7 +19,7 @@ def engine():
 def db_session(engine):
     conn = engine.connect()
     trans = conn.begin()
-    session = Session(bind=conn)
+    session = Session(conn)
     yield session
     session.close()
     trans.rollback()
