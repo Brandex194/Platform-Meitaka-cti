@@ -1,6 +1,8 @@
 """Correlation engine: runs all 5 rules for a tenant and upserts CorrelationEvent rows."""
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.db.models import CorrelationEvent, ExposureMatch
 from app.streams.streams import publish
 
@@ -100,6 +102,8 @@ class CorrelationEngine:
         for rule_fn in _RULES:
             try:
                 candidates = rule_fn(session, tenant_id)
+            except SQLAlchemyError:
+                raise  # DB errors abort this tenant's run; session may be poisoned
             except Exception as exc:
                 logger.warning("correlate: rule %s failed for tenant %s: %s", rule_fn.__name__, tenant_id, exc)
                 continue

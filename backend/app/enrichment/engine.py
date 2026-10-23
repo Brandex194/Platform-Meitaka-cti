@@ -13,16 +13,16 @@ OUTPUT_STREAM = "correlation-events"
 BATCH_SIZE = 100
 
 
-def enrich_batch(db=None, r=None) -> int:
-    """Read one batch from enriched-entities, enrich vulnerability rows, advance cursor on success.
+def enrich_batch(db=None, r=None) -> tuple[int, str | None]:
+    """Read one batch from enriched-entities, enrich vulnerability rows.
 
-    Returns count of messages processed. Cursor NOT advanced on exception.
-    Per-message guard covers parse/type errors; DB errors propagate.
+    Returns (count, last_msg_id). Caller must save cursor AFTER commit.
+    Cursor NOT advanced on exception. Per-message guard covers parse/type errors; DB errors propagate.
     """
     cursor = get_cursor(CURSOR_STREAM, r)
     batch = read_batch(CURSOR_STREAM, cursor, BATCH_SIZE, r)
     if not batch:
-        return 0
+        return 0, None
 
     count = 0
     last_msg_id = None
@@ -43,8 +43,8 @@ def enrich_batch(db=None, r=None) -> int:
         count += 1
         last_msg_id = msg_id
 
-    save_cursor(CURSOR_STREAM, last_msg_id, r)
-    return count
+    # cursor saved by caller after commit
+    return count, last_msg_id
 
 
 def _enrich_vulnerability(cve_id: str, db, r) -> None:

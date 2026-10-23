@@ -6,10 +6,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.jwks import decode_token
+from app.api.v1.deps import get_scoped_db
 from app.auth.roles import Role, require_roles
 from app.db.models import Asset
-from app.db.session import get_db
 
 router = APIRouter()
 
@@ -22,8 +21,7 @@ class AssetIn(BaseModel):
 @router.get("/tenants/{tenant_id}/assets")
 def list_assets(
     tenant_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    _: dict = Depends(decode_token),
+    db: Session = Depends(get_scoped_db),
 ):
     assets = db.execute(
         select(Asset).where(Asset.tenant_id == tenant_id)
@@ -35,7 +33,7 @@ def list_assets(
 def create_asset(
     tenant_id: uuid.UUID,
     body: AssetIn,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_scoped_db),
     _: dict = Depends(require_roles(Role.super_admin, Role.tenant_admin, Role.api_user)),
 ):
     asset = Asset(tenant_id=tenant_id, hostname=body.hostname, ip=body.ip)

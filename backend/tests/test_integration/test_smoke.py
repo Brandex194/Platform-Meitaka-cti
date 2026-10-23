@@ -60,8 +60,8 @@ def test_full_pipeline_produces_score():
         mock_r.xread.return_value = []
         mock_r.get.return_value = None  # no cursor stored
 
-        assert normalize_batch(db=db, r=mock_r) == 0
-        assert enrich_batch(db=db, r=mock_r) == 0
+        assert normalize_batch(db=db, r=mock_r)[0] == 0
+        assert enrich_batch(db=db, r=mock_r)[0] == 0
 
         # run_for_tenant accepts db directly — no bypass_session needed
         result = run_for_tenant(tenant_id=tenant.id, db=db)

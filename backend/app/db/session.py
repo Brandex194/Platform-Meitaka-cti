@@ -25,8 +25,7 @@ def get_tenant_scoped_db(tenant_id: uuid.UUID):
     db = SessionLocal()
     try:
         with db.begin():
-            # SET LOCAL does not support bind params; tenant_id is uuid.UUID, safe
-            db.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'"))
+            db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": str(tenant_id)})
             yield db
     finally:
         db.close()

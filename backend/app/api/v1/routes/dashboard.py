@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.jwks import decode_token
@@ -28,12 +28,23 @@ def dashboard(
         )
     ).scalar_one()
 
-    top_scores = db.execute(
-        select(Score)
-        .where(Score.tenant_id == tenant_id, Score.score_type == "asset")
+    # Only latest score per asset to avoid duplicate entries
+    latest_subq = (
+        db.query(Score.asset_id, func.max(Score.computed_at).label("max_at"))
+        .filter(Score.tenant_id == tenant_id, Score.score_type == "asset")
+        .group_by(Score.asset_id)
+        .subquery()
+    )
+    top_scores = (
+        db.query(Score)
+        .join(latest_subq, and_(
+            Score.asset_id == latest_subq.c.asset_id,
+            Score.computed_at == latest_subq.c.max_at,
+        ))
         .order_by(Score.value.desc())
         .limit(5)
-    ).scalars().all()
+        .all()
+    )
 
     return {
         "open_cases": open_cases,

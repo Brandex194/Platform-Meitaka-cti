@@ -2,25 +2,39 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.v1.deps import get_scoped_db
 from app.auth.roles import Role, require_roles
 from app.core.errors import error_response
 from app.db.models import AuditLog, ScoreRule
-from app.db.session import get_db
 
 router = APIRouter()
 
 
+class ScoreRuleWeights(BaseModel):
+    severity: float
+    confidence: float
+    recency: float
+    epss: float
+
+    @model_validator(mode="after")
+    def check_sum(self) -> "ScoreRuleWeights":
+        total = self.severity + self.confidence + self.recency + self.epss
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"weights must sum to 1.0, got {total}")
+        return self
+
+
 class ScoreRuleIn(BaseModel):
-    weights: Optional[dict] = None
+    weights: Optional[ScoreRuleWeights] = None
     thresholds: Optional[dict] = None
 
 
 class ScoreRuleUpdate(BaseModel):
-    weights: Optional[dict] = None
+    weights: Optional[ScoreRuleWeights] = None
     thresholds: Optional[dict] = None
 
 
@@ -32,7 +46,7 @@ def _rule_to_dict(rule: ScoreRule) -> dict:
 def create_score_rule(
     tenant_id: uuid.UUID,
     body: ScoreRuleIn,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_scoped_db),
     payload: dict = Depends(require_roles(Role.super_admin)),
 ):
     max_ver = db.execute(
@@ -45,7 +59,7 @@ def create_score_rule(
 
     kwargs: dict = {"tenant_id": tenant_id, "version": version}
     if body.weights is not None:
-        kwargs["weights"] = body.weights
+        kwargs["weights"] = body.weights.model_dump()
     if body.thresholds is not None:
         kwargs["thresholds"] = body.thresholds
     rule = ScoreRule(**kwargs)
@@ -68,7 +82,7 @@ def patch_score_rule(
     tenant_id: uuid.UUID,
     rule_id: uuid.UUID,
     body: ScoreRuleUpdate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_scoped_db),
     payload: dict = Depends(require_roles(Role.super_admin)),
 ):
     rule = db.execute(
@@ -78,7 +92,7 @@ def patch_score_rule(
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "ScoreRule not found"))
 
     if body.weights is not None:
-        rule.weights = body.weights
+        rule.weights = body.weights.model_dump()
     if body.thresholds is not None:
         rule.thresholds = body.thresholds
     rule.version += 1

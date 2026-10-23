@@ -7,11 +7,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.jwks import decode_token
+from app.api.v1.deps import get_scoped_db
 from app.auth.roles import Role, require_roles
 from app.core.errors import error_response
 from app.db.models import CorrelationEvent, ExposureMatch
-from app.db.session import get_db
 
 router = APIRouter()
 
@@ -23,8 +22,7 @@ class ExposurePatch(BaseModel):
 @router.get("/tenants/{tenant_id}/exposure-matches")
 def list_exposure_matches(
     tenant_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    _: dict = Depends(decode_token),
+    db: Session = Depends(get_scoped_db),
 ):
     matches = db.execute(
         select(ExposureMatch).where(ExposureMatch.tenant_id == tenant_id)
@@ -44,7 +42,7 @@ def resolve_exposure_match(
     tenant_id: uuid.UUID,
     match_id: uuid.UUID,
     body: ExposurePatch,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_scoped_db),
     _: dict = Depends(require_roles(Role.super_admin, Role.tenant_admin, Role.analyst)),
 ):
     match = db.execute(

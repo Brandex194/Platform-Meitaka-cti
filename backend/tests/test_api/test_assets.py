@@ -34,3 +34,10 @@ def test_unauthenticated_no_override_returns_401(client_no_auth, tenant):
     r = client_no_auth.get(f"/api/v1/tenants/{tenant.id}/assets")
     assert r.status_code == 401
     assert r.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_cross_tenant_returns_403(client_tenant_a, tenant_b_id):
+    """Token for tenant A cannot access tenant B's assets."""
+    r = client_tenant_a.get(f"/api/v1/tenants/{tenant_b_id}/assets")
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "FORBIDDEN"

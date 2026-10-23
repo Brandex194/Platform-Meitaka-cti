@@ -46,11 +46,13 @@ def _all_tenant_ids():
 
 
 def _run_with_db_and_redis(fn):
-    """Open bypass_session + redis, call fn(db, r), return result."""
+    """Open bypass_session + redis, call fn(db, r), commit, save cursor, return count."""
+    r = get_redis()
     gen = bypass_session()
     db = next(gen)
     try:
-        result = fn(db, get_redis())
+        result = fn(db, r)
+        db.flush()
     except Exception:
         db.rollback()
         try:
@@ -59,9 +61,18 @@ def _run_with_db_and_redis(fn):
             pass
         raise
     try:
-        next(gen)
+        next(gen)  # commit
     except StopIteration:
         pass
+    # Save cursor AFTER commit so it only advances on durable writes
+    if isinstance(result, tuple) and len(result) >= 2:
+        count, last_msg_id = result[0], result[1]
+        if last_msg_id:
+            from app.streams.streams import save_cursor
+            cursor_stream = fn.__globals__.get("CURSOR_STREAM")
+            if cursor_stream:
+                save_cursor(cursor_stream, last_msg_id, r)
+        return count
     return result
 
 

@@ -14,16 +14,16 @@ OUTPUT_STREAM = "enriched-entities"
 BATCH_SIZE = 100
 
 
-def normalize_batch(db=None, r=None) -> int:
-    """Read one batch from raw-observations, upsert entities, advance cursor on success.
+def normalize_batch(db=None, r=None) -> tuple[int, str | None]:
+    """Read one batch from raw-observations, upsert entities.
 
-    Returns count of messages processed (including skipped unknown types).
+    Returns (count, last_msg_id). Caller must save cursor AFTER commit.
     On exception, cursor is NOT advanced (re-raised to caller).
     """
     cursor = get_cursor(CURSOR_STREAM, r)
     batch = read_batch(CURSOR_STREAM, cursor, BATCH_SIZE, r)
     if not batch:
-        return 0
+        return 0, None
 
     count = 0
     last_msg_id = None
@@ -53,10 +53,9 @@ def normalize_batch(db=None, r=None) -> int:
         count += 1
         last_msg_id = msg_id
 
-    # flush DB before advancing cursor — if flush raises, cursor stays put
+    # flush DB before returning — cursor saved by caller after commit
     db.flush()
-    save_cursor(CURSOR_STREAM, last_msg_id, r)
-    return count
+    return count, last_msg_id
 
 
 

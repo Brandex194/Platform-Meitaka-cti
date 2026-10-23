@@ -4,6 +4,7 @@ Env vars MUST be set before any app imports so that session.py's module-level
 engine creation and pydantic Settings validation succeed.
 """
 import os
+import uuid
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
@@ -14,6 +15,7 @@ os.environ.setdefault("KEYCLOAK_CLIENT_ID", "sentinel-api")
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.api.v1.deps import get_scoped_db  # noqa: E402
 from app.auth.jwks import decode_token  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -27,7 +29,8 @@ def _client(db_session, roles: list, tenant_id: str) -> TestClient:
         "roles": roles,
         "tenant_id": tenant_id,
     }
-    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_scoped_db] = lambda: db_session
+    app.dependency_overrides[get_db] = lambda: db_session  # dashboard still uses get_db
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -48,10 +51,29 @@ def super_admin_client(db_session, tenant):
 
 @pytest.fixture
 def client_no_auth(db_session):
-    """TestClient with NO auth override — tests that unauthenticated requests get 401."""
+    """TestClient with NO auth override — tests that unauthenticated requests get 401.
+    decode_token (subdep of get_scoped_db) raises 401 before DB is touched, so no DB override needed.
+    """
     app = create_app()
-    app.dependency_overrides[get_db] = lambda: db_session
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def client_tenant_a(tenant):
+    """TestClient whose token carries tenant A's id but get_scoped_db is NOT bypassed."""
+    app = create_app()
+    app.dependency_overrides[decode_token] = lambda: {
+        "sub": "testuser",
+        "roles": ["analyst"],
+        "tenant_id": str(tenant.id),
+    }
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def tenant_b_id():
+    """A random UUID representing a different tenant."""
+    return uuid.uuid4()
 
 
 @pytest.fixture

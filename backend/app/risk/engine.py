@@ -48,13 +48,20 @@ def run_for_tenant(tenant_id, db: Optional[Session] = None, r=None) -> dict:
 
 
 def _compute(tenant_id, db: Session) -> dict:
-    # 1. Active ScoreRule: tenant-specific wins over global (tenant_id IS NULL)
-    rule = db.execute(
-        select(ScoreRule)
-        .where((ScoreRule.tenant_id == tenant_id) | (ScoreRule.tenant_id == None))
+    # 1. Active ScoreRule: prefer tenant-specific (highest version), fall back to global
+    rule = (
+        db.query(ScoreRule)
+        .filter(ScoreRule.tenant_id == tenant_id)
         .order_by(ScoreRule.version.desc())
-        .limit(1)
-    ).scalar_one_or_none()
+        .first()
+    )
+    if not rule:
+        rule = (
+            db.query(ScoreRule)
+            .filter(ScoreRule.tenant_id.is_(None))
+            .order_by(ScoreRule.version.desc())
+            .first()
+        )
     weights = rule.weights if rule else DEFAULT_WEIGHTS
     thresholds = rule.thresholds if rule else _DEFAULT_THRESHOLDS
 
