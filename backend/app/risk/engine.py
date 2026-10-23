@@ -122,9 +122,12 @@ def _compute(tenant_id, db: Session) -> dict:
         check_and_notify(tenant_id, asset_id, old_val, total, db)
 
     # Fix 1: assets with prior scores but no active events now → insert Score(0.0)
+    # Fix 2 (round 2): skip if already at 0.0 to avoid unbounded row growth
     active_asset_ids = set(by_asset.keys())
     for asset_id, prev in prev_scores.items():
         if asset_id not in active_asset_ids:
+            if prev.value == 0.0:
+                continue  # already resolved to 0.0, no re-insert
             db.add(Score(
                 tenant_id=tenant_id,
                 asset_id=asset_id,

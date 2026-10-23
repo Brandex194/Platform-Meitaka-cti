@@ -88,9 +88,15 @@ def test_fully_resolved_asset_gets_zero_score(db_session, tenant, asset):
     e.is_active = False
     db_session.flush()
 
-    run_for_tenant(tenant.id, db=db_session)
+    run_for_tenant(tenant.id, db=db_session)  # run 2: inserts Score(0.0)
     scores = db_session.execute(
         select(Score).where(Score.tenant_id == tenant.id, Score.asset_id == asset.id)
     ).scalars().all()
-    # After full resolve, a Score(0.0) must exist for this asset
     assert any(s.value == 0.0 for s in scores)
+    assert len(scores) == 2  # run 1 (active) + run 2 (resolved)
+
+    run_for_tenant(tenant.id, db=db_session)  # run 3: must NOT insert again
+    scores = db_session.execute(
+        select(Score).where(Score.tenant_id == tenant.id, Score.asset_id == asset.id)
+    ).scalars().all()
+    assert len(scores) == 2  # still 2 — no unbounded growth
