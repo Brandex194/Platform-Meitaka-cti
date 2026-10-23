@@ -58,6 +58,16 @@ def test_normalize_malformed_message_skips(db_session, fake_redis):
     assert get_cursor("raw-observations", r=fake_redis) != "0-0"
 
 
+def test_normalize_cve_missing_id_skips(db_session, fake_redis):
+    """CVE with no 'id' field is skipped; cursor still advances."""
+    publish("raw-observations", {"type": "cve", "data": '{"not_id": "blah"}'}, r=fake_redis)
+
+    count = normalize_batch(db=db_session, r=fake_redis)
+
+    assert count == 1
+    assert get_cursor("raw-observations", r=fake_redis) != "0-0"
+
+
 def test_normalize_cursor_not_advanced_on_exception(db_session, fake_redis, monkeypatch):
     cve_payload = {"id": "CVE-2024-5678", "descriptions": [], "metrics": {}}
     publish("raw-observations", {"type": "cve", "data": json.dumps(cve_payload)}, r=fake_redis)

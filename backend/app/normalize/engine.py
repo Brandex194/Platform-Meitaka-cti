@@ -28,27 +28,28 @@ def normalize_batch(db=None, r=None) -> int:
     count = 0
     last_msg_id = None
     for msg_id, msg_fields in batch:
-        # Parse message header — skip poison pills, never block the stream
+        # Parse + dispatch wrapped together — skip poison pills without blocking the stream.
+        # DB errors (IntegrityError, OperationalError) are NOT listed and propagate to halt the batch.
         try:
             msg_type = msg_fields.get("type", "unknown")
             raw_data = msg_fields.get("data", "{}")
             data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
-        except (json.JSONDecodeError, KeyError) as exc:
-            logger.warning("normalize: malformed message %s: %s", msg_id, exc)
-            count += 1
-            last_msg_id = msg_id
-            continue
+            if not isinstance(data, dict):
+                raise ValueError(f"expected dict, got {type(data).__name__}")
 
-        # DB operations propagate — halt batch, do not save cursor
-        if msg_type == "cve":
-            cve_id = _upsert_vulnerability(data, db)
-            publish(OUTPUT_STREAM, {"type": "vulnerability", "cve_id": cve_id}, r)
-        elif msg_type == "leak":
-            _upsert_leak(data, db)
-        elif msg_type == "indicator":
-            _upsert_indicator(data, db)
-        else:
-            logger.warning("normalize_batch: unknown message type %r — skipping", msg_type)
+            if msg_type == "cve":
+                cve_id = _upsert_vulnerability(data, db)
+                publish(OUTPUT_STREAM, {"type": "vulnerability", "cve_id": cve_id}, r=r)
+            elif msg_type == "leak":
+                _upsert_leak(data, db)
+            elif msg_type == "indicator":
+                _upsert_indicator(data, db)
+            else:
+                logger.warning("normalize: unknown message type %s, skipping", msg_type)
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError, AttributeError) as exc:
+            logger.warning("normalize: skipping malformed message %s: %s", msg_id, exc)
+
+        # Always advance count/cursor pointer — for both success and skip
         count += 1
         last_msg_id = msg_id
 
