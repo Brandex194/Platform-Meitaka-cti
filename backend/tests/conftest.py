@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -54,3 +56,38 @@ def software(db_session, asset):
     db_session.add(s)
     db_session.flush()
     return s
+
+
+# ---------------------------------------------------------------------------
+# Auth fixtures (Task 5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def app_instance():
+    return FastAPI()
+
+
+@pytest.fixture
+def client(app_instance):
+    return TestClient(app_instance)
+
+
+@pytest.fixture
+def viewer_token():
+    return {"sub": "user1", "roles": ["viewer"], "tenant_id": str(uuid.uuid4())}
+
+
+@pytest.fixture
+def analyst_token():
+    return {"sub": "user2", "roles": ["analyst"], "tenant_id": str(uuid.uuid4())}
+
+
+@pytest.fixture
+def tenant_admin_token():
+    return {"sub": "user3", "roles": ["tenant_admin"], "tenant_id": str(uuid.uuid4())}
+
+
+@pytest.fixture
+def exposure_match_id():
+    return uuid.uuid4()
