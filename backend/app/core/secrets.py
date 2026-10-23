@@ -31,17 +31,22 @@ def resolve_secret(key: str) -> str:
     if value:
         return value
 
-    try:
-        if addr := os.getenv("VAULT_ADDR"):
+    # Each backend is independent: a Vault failure must not skip AWS
+    if addr := os.getenv("VAULT_ADDR"):
+        try:
             value = _from_vault(key, addr)
-        if not value and (arn := os.getenv("AWS_SECRET_ARN")):
-            value = _from_aws(key, arn)
-    except Exception as exc:
-        logger.warning("secret %s lookup failed: %s", key, exc)
-        value = ""
+            if value:
+                return value
+        except Exception as exc:
+            logger.warning("secret %s vault lookup failed: %s", key, exc)
 
-    if value:
-        return value
+    if arn := os.getenv("AWS_SECRET_ARN"):
+        try:
+            value = _from_aws(key, arn)
+            if value:
+                return value
+        except Exception as exc:
+            logger.warning("secret %s aws lookup failed: %s", key, exc)
 
     logger.warning("secret %s not found, using empty string", key)
     return ""
