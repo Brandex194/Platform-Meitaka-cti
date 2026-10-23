@@ -96,8 +96,11 @@ def test_kev_read_from_table_not_http(db_session, fake_redis, httpx_mock):
     db_session.add(kev)
     db_session.flush()
 
+    v = db_session.query(Vulnerability).filter_by(cve_id=cve_id).one()
     publish("enriched-entities", {"type": "vulnerability", "cve_id": cve_id}, r=fake_redis)
     enrich_batch(db=db_session, r=fake_redis)
 
     requests = httpx_mock.get_requests()
     assert not any("cisa.gov" in str(r.url) for r in requests)
+    db_session.refresh(v)
+    assert v.kev_date_added == date(2024, 6, 15)

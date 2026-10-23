@@ -77,9 +77,8 @@ def test_start_including_out_of_range_returns_false():
     assert matched is False
 
 
-def test_invalid_version_falls_back_to_string_compare():
-    # "1.9.9-alpha" is invalid PEP-440 but valid string
+def test_invalid_version_returns_not_affected():
+    # truly unparseable version — cannot determine affected status, treat as not affected
     configs = [{"criteria": "cpe:2.3:a:v:p:*:*:*:*:*:*:*:*", "versionEndExcluding": "2.0.0"}]
-    matched, _ = match_cpe("cpe:2.3:a:v:p:1.9.9-alpha:*:*:*:*:*:*:*", configs)
-    # "1.9.9-alpha" < "2.0.0" lexicographically
-    assert matched is True
+    result = match_cpe("cpe:2.3:a:v:p:not-a-version:*:*:*:*:*:*:*", configs)
+    assert result == (False, 0.0)

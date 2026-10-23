@@ -30,10 +30,11 @@ def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool,
             continue
 
         ver_start = config.get("versionStartIncluding")
+        ver_start_excl = config.get("versionStartExcluding")
         ver_end_excl = config.get("versionEndExcluding")
         ver_end_incl = config.get("versionEndIncluding")
 
-        if not any([ver_start, ver_end_excl, ver_end_incl]):
+        if not any([ver_start, ver_start_excl, ver_end_excl, ver_end_incl]):
             return (True, 0.7) if sw_version == "*" else (True, 0.5)
 
         if sw_version == "*":
@@ -41,20 +42,17 @@ def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool,
 
         try:
             sv = Version(sw_version)
-            if ver_start and not (sv >= Version(ver_start)):
-                continue
-            if ver_end_excl and not (sv < Version(ver_end_excl)):
-                continue
-            if ver_end_incl and not (sv <= Version(ver_end_incl)):
-                continue
         except InvalidVersion:
-            # shortcut: string lexicographic comparison for non-PEP-440 versions, may misorder e.g. "10" < "9"
-            if ver_start and not (sw_version >= ver_start):
-                continue
-            if ver_end_excl and not (sw_version < ver_end_excl):
-                continue
-            if ver_end_incl and not (sw_version <= ver_end_incl):
-                continue
+            return False, 0.0  # cannot determine if affected when version is unparseable
+
+        if ver_start and not (sv >= Version(ver_start)):
+            continue
+        if ver_start_excl and not (sv > Version(ver_start_excl)):
+            continue
+        if ver_end_excl and not (sv < Version(ver_end_excl)):
+            continue
+        if ver_end_incl and not (sv <= Version(ver_end_incl)):
+            continue
 
         return True, 0.9
 
