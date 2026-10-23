@@ -11,7 +11,7 @@ def f_severity(event, kev_ids: set, vuln_score: Optional[float]) -> float:
     """1.0 if vulnerability is in KEV (kev_ids = set of vuln UUID strings), else cvss/10 or 0.5."""
     if event.vulnerability_id and str(event.vulnerability_id) in kev_ids:
         return 1.0
-    return vuln_score / 10.0 if vuln_score else 0.5
+    return vuln_score / 10.0 if vuln_score is not None else 0.5
 
 
 def f_confidence(event) -> float:
@@ -27,7 +27,7 @@ def f_recency(event) -> float:
     if ca.tzinfo is None:
         ca = ca.replace(tzinfo=timezone.utc)  # SQLite returns naive UTC
     age_days = (now - ca).days
-    return max(0.0, 1.0 - age_days / 90.0)
+    return min(1.0, max(0.0, 1.0 - age_days / 90.0))
 
 
 def epss_boost(score: Optional[float]) -> float:

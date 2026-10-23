@@ -32,14 +32,16 @@ def run_for_tenant(tenant_id, db: Optional[Session] = None, r=None) -> dict:
     session = next(gen)
     try:
         result = _compute(tenant_id, session)
+        session.flush()
     except Exception:
+        session.rollback()
         try:
             next(gen)
         except Exception:
             pass
         raise
     try:
-        next(gen)
+        next(gen)  # commit — StopIteration is normal
     except StopIteration:
         pass
     return result
@@ -64,9 +66,6 @@ def _compute(tenant_id, db: Session) -> dict:
         )
     ).scalars().all()
 
-    if not events:
-        return {"tenant_id": str(tenant_id), "scores_computed": 0}
-
     # 3. KEV vuln IDs: set of UUID strings for vulns whose cve_id is in KEV
     kev_cve_ids = {row.cve_id for row in db.execute(select(KevCatalog)).scalars().all()}
     kev_vuln_ids: set = set()
@@ -78,34 +77,38 @@ def _compute(tenant_id, db: Session) -> dict:
             ).scalars().all()
         }
 
-    # 4. Bulk-load all referenced vulnerabilities
+    # 4. Previous scores (for change detection and fully-resolved asset handling)
+    prev_scores: dict = {}
+    for s in db.execute(select(Score).where(Score.tenant_id == tenant_id, Score.score_type == "asset")).scalars().all():
+        # Keep only the most recent per asset
+        if s.asset_id not in prev_scores or s.computed_at > prev_scores[s.asset_id].computed_at:
+            prev_scores[s.asset_id] = s
+
+    # 5. Bulk-load all referenced vulnerabilities (Fix 2: per-event lookup via map)
     vuln_ids = {e.vulnerability_id for e in events if e.vulnerability_id}
     vuln_map: dict = {}
     if vuln_ids:
         for v in db.execute(select(Vulnerability).where(Vulnerability.id.in_(vuln_ids))).scalars().all():
             vuln_map[v.id] = v
 
-    # 5. Score each asset
+    # 6. Group active events by asset, score each event against its own vulnerability
     by_asset: dict = {}
     for e in events:
         by_asset.setdefault(e.asset_id, []).append(e)
 
     count = 0
     now = datetime.now(timezone.utc)
+
     for asset_id, asset_events in by_asset.items():
-        vulns = [vuln_map[e.vulnerability_id] for e in asset_events if e.vulnerability_id and e.vulnerability_id in vuln_map]
-        vuln_epss = max((v.epss_score for v in vulns if v.epss_score is not None), default=None)
-        vuln_score = max((v.cvss_score for v in vulns if v.cvss_score is not None), default=None)
+        # Fix 2: each event uses its own vulnerability's EPSS/CVSS
+        total = 0.0
+        for e in asset_events:
+            vuln = vuln_map.get(e.vulnerability_id) if e.vulnerability_id else None
+            vuln_epss = vuln.epss_score if vuln else None
+            vuln_score = vuln.cvss_score if vuln else None
+            total += s_base(e, kev_vuln_ids, vuln_epss, vuln_score, weights)
 
-        total = sum(s_base(e, kev_vuln_ids, vuln_epss, vuln_score, weights) for e in asset_events)
-
-        prev = db.execute(
-            select(Score)
-            .where(Score.tenant_id == tenant_id, Score.asset_id == asset_id, Score.score_type == "asset")
-            .order_by(Score.computed_at.desc())
-            .limit(1)
-        ).scalar_one_or_none()
-        old_val = prev.value if prev else None
+        old_val = prev_scores[asset_id].value if asset_id in prev_scores else None
 
         db.add(Score(
             tenant_id=tenant_id,
@@ -117,6 +120,21 @@ def _compute(tenant_id, db: Session) -> dict:
         ))
         count += 1
         check_and_notify(tenant_id, asset_id, old_val, total, db)
+
+    # Fix 1: assets with prior scores but no active events now → insert Score(0.0)
+    active_asset_ids = set(by_asset.keys())
+    for asset_id, prev in prev_scores.items():
+        if asset_id not in active_asset_ids:
+            db.add(Score(
+                tenant_id=tenant_id,
+                asset_id=asset_id,
+                score_type="asset",
+                value=0.0,
+                level="low",
+                computed_at=now,
+            ))
+            count += 1
+            check_and_notify(tenant_id, asset_id, prev.value, 0.0, db)
 
     db.flush()
     return {"tenant_id": str(tenant_id), "scores_computed": count}

@@ -71,3 +71,26 @@ def test_score_decreases_after_resolve(db_session, tenant, asset):
     ).scalar_one().value
 
     assert after < before
+
+
+def test_fully_resolved_asset_gets_zero_score(db_session, tenant, asset):
+    from app.risk.engine import run_for_tenant
+
+    e = CorrelationEvent(
+        tenant_id=tenant.id, asset_id=asset.id, rule_name="r1",
+        s_context=0.9, is_active=True, created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(e)
+    db_session.flush()
+
+    run_for_tenant(tenant.id, db=db_session)
+
+    e.is_active = False
+    db_session.flush()
+
+    run_for_tenant(tenant.id, db=db_session)
+    scores = db_session.execute(
+        select(Score).where(Score.tenant_id == tenant.id, Score.asset_id == asset.id)
+    ).scalars().all()
+    # After full resolve, a Score(0.0) must exist for this asset
+    assert any(s.value == 0.0 for s in scores)
