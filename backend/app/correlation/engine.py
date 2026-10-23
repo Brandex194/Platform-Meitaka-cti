@@ -2,6 +2,7 @@
 import logging
 
 from app.db.models import CorrelationEvent, ExposureMatch
+from app.streams.streams import publish
 
 from .rules import (
     correlate_campaign_asset,
@@ -36,25 +37,30 @@ def _event_exists(session, event: CorrelationEvent) -> bool:
 
 
 class CorrelationEngine:
-    def run_for_tenant(self, tenant_id, session=None) -> int:
+    def run_for_tenant(self, tenant_id, session=None, r=None) -> int:
         """Run all correlation rules for *tenant_id*. Returns count of new events created.
 
         Pass *session* in tests to avoid touching the real DB.
+        Pass *r* (Redis client) in tests; if None, a real Redis connection is attempted.
         """
         if session is not None:
-            return self._run(session, tenant_id)
+            return self._run(session, tenant_id, r)
         from app.db.session import bypass_session  # lazy: avoids Settings() at import time
         gen = bypass_session()
         db = next(gen)
         try:
-            return self._run(db, tenant_id)
+            count = self._run(db, tenant_id, r)
+        except Exception:
+            db.rollback()
+            raise
         finally:
             try:
                 next(gen)
-            except StopIteration:
-                pass
+            except (StopIteration, Exception):
+                pass  # commit error after rollback is safe to ignore — data already rolled back
+        return count
 
-    def _run(self, session, tenant_id) -> int:
+    def _run(self, session, tenant_id, r=None) -> int:
         count = 0
         for rule_fn in _RULES:
             try:
@@ -73,6 +79,18 @@ class CorrelationEngine:
                         correlation_event_id=event.id,
                     )
                 )
+                try:
+                    publish(
+                        "correlation-events",
+                        {
+                            "type": "correlation_created",
+                            "tenant_id": str(tenant_id),
+                            "correlation_event_id": str(event.id),
+                        },
+                        r=r,
+                    )
+                except Exception as exc:
+                    logger.warning("correlate: stream publish failed for event %s: %s", event.id, exc)
                 count += 1
         session.flush()
         return count

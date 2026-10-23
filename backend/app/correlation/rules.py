@@ -3,6 +3,8 @@ import hashlib
 import ipaddress
 import logging
 
+from sqlalchemy import or_
+
 from app.db.models import (
     Asset,
     CorrelationEvent,
@@ -56,7 +58,9 @@ def correlate_ioc_asset(session, tenant_id) -> list[CorrelationEvent]:
     assets = session.query(Asset).filter_by(tenant_id=tenant_id).all()
     if not assets:
         return []
-    indicators = session.query(Indicator).all()
+    indicators = session.query(Indicator).filter(
+        or_(Indicator.tenant_id.is_(None), Indicator.tenant_id == tenant_id)
+    ).all()
     events = []
     for asset in assets:
         for ioc in indicators:
