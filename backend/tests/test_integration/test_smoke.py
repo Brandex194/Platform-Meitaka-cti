@@ -1,4 +1,71 @@
 """Integration smoke tests — verify the full pipeline is importable and wired correctly."""
+import uuid
+from unittest.mock import MagicMock, patch
+
+
+def test_nvd_collector_uses_date_filter():
+    """NVD collector passes lastModStartDate when a cursor exists in Redis."""
+    mock_r = MagicMock()
+    mock_r.get.return_value = "2026-10-01T00:00:00.000"  # stored cursor
+
+    captured_params = {}
+
+    def mock_httpx_get(url, params=None, headers=None, timeout=None):
+        captured_params.update(params or {})
+        resp = MagicMock()
+        resp.json.return_value = {
+            "vulnerabilities": [],
+            "totalResults": 0,
+            "resultsPerPage": 0,
+            "startIndex": 0,
+        }
+        return resp
+
+    with patch("httpx.get", mock_httpx_get):
+        from app.collectors.nvd import fetch_nvd
+        fetch_nvd(r=mock_r)
+
+    assert "lastModStartDate" in captured_params, "NVD collector must pass lastModStartDate when cursor exists"
+
+
+def test_full_pipeline_produces_score():
+    """normalize→enrich→correlate→risk run without exceptions; risk returns a dict.
+
+    Uses its own in-memory SQLite engine via StaticPool so the test is
+    self-contained and order-independent regardless of the shared session fixture.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+    from app.db.base import Base
+    from app.db.models import Tenant
+    from app.normalize.engine import normalize_batch
+    from app.enrichment.engine import enrich_batch
+    from app.risk.engine import run_for_tenant
+
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(eng)
+
+    with Session(eng) as db:
+        tenant = Tenant(id=uuid.uuid4(), name="smoke-tenant", slug="smoke-t14")
+        db.add(tenant)
+        db.flush()
+
+        # xread returns [] → read_batch returns [] → engines return 0 without crash
+        mock_r = MagicMock()
+        mock_r.xread.return_value = []
+        mock_r.get.return_value = None  # no cursor stored
+
+        assert normalize_batch(db=db, r=mock_r) == 0
+        assert enrich_batch(db=db, r=mock_r) == 0
+
+        # run_for_tenant accepts db directly — no bypass_session needed
+        result = run_for_tenant(tenant_id=tenant.id, db=db)
+        assert isinstance(result, dict), "run_for_tenant should return a dict"
 
 
 def test_all_pipeline_modules_importable():

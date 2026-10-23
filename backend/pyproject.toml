@@ -39,3 +39,6 @@ include = ["app*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as requiring real Postgres and Redis (deselect with -m 'not integration')",
+]
