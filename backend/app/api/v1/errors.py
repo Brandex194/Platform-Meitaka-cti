@@ -7,14 +7,21 @@ from app.core.errors import error_response
 
 __all__ = ["error_response"]
 
+_CODE_MAP = {
+    401: "UNAUTHORIZED",
+    403: "FORBIDDEN",
+    404: "NOT_FOUND",
+    422: "VALIDATION_ERROR",
+    429: "RATE_LIMIT_EXCEEDED",
+}
+
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    # Preserve error model if already wrapped
+    # Preserve already-wrapped error model
     if isinstance(exc.detail, dict) and "error" in exc.detail:
-        content = exc.detail
-    else:
-        content = error_response("HTTP_ERROR", str(exc.detail))
-    return JSONResponse(status_code=exc.status_code, content=content)
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    code = _CODE_MAP.get(exc.status_code, "HTTP_ERROR")
+    return JSONResponse(status_code=exc.status_code, content=error_response(code, str(exc.detail)))
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:

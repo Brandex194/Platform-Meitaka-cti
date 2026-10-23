@@ -11,8 +11,6 @@ os.environ.setdefault("KEYCLOAK_URL", "http://localhost:8080")
 os.environ.setdefault("KEYCLOAK_REALM", "sentinel")
 os.environ.setdefault("KEYCLOAK_CLIENT_ID", "sentinel-api")
 
-import uuid  # noqa: E402
-
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -46,6 +44,14 @@ def viewer_client(db_session, tenant):
 @pytest.fixture
 def super_admin_client(db_session, tenant):
     return _client(db_session, ["super_admin"], str(tenant.id))
+
+
+@pytest.fixture
+def client_no_auth(db_session):
+    """TestClient with NO auth override — tests that unauthenticated requests get 401."""
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: db_session
+    return TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture

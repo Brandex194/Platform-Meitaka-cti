@@ -1,12 +1,13 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.roles import Role, require_roles
+from app.core.errors import error_response
 from app.db.models import AuditLog, ScoreRule
 from app.db.session import get_db
 
@@ -18,6 +19,15 @@ class ScoreRuleIn(BaseModel):
     thresholds: Optional[dict] = None
 
 
+class ScoreRuleUpdate(BaseModel):
+    weights: Optional[dict] = None
+    thresholds: Optional[dict] = None
+
+
+def _rule_to_dict(rule: ScoreRule) -> dict:
+    return {"id": str(rule.id), "version": rule.version, "weights": rule.weights, "thresholds": rule.thresholds}
+
+
 @router.post("/tenants/{tenant_id}/score-rules", status_code=201)
 def create_score_rule(
     tenant_id: uuid.UUID,
@@ -25,7 +35,6 @@ def create_score_rule(
     db: Session = Depends(get_db),
     payload: dict = Depends(require_roles(Role.super_admin)),
 ):
-    # Auto-increment version per tenant
     max_ver = db.execute(
         select(ScoreRule.version)
         .where((ScoreRule.tenant_id == tenant_id) | (ScoreRule.tenant_id == None))
@@ -51,5 +60,35 @@ def create_score_rule(
         payload={"version": version},
     ))
     db.flush()
+    return _rule_to_dict(rule)
 
-    return {"id": str(rule.id), "version": rule.version, "weights": rule.weights, "thresholds": rule.thresholds}
+
+@router.patch("/tenants/{tenant_id}/score-rules/{rule_id}")
+def patch_score_rule(
+    tenant_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: ScoreRuleUpdate,
+    db: Session = Depends(get_db),
+    payload: dict = Depends(require_roles(Role.super_admin)),
+):
+    rule = db.execute(
+        select(ScoreRule).where(ScoreRule.id == rule_id, ScoreRule.tenant_id == tenant_id)
+    ).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "ScoreRule not found"))
+
+    if body.weights is not None:
+        rule.weights = body.weights
+    if body.thresholds is not None:
+        rule.thresholds = body.thresholds
+    rule.version += 1
+
+    db.add(AuditLog(
+        tenant_id=tenant_id,
+        action="update_score_rule",
+        resource_type="score_rule",
+        resource_id=rule.id,
+        payload={"version": rule.version},
+    ))
+    db.flush()
+    return _rule_to_dict(rule)

@@ -28,3 +28,9 @@ def test_create_asset_with_analyst_returns_403(analyst_client, tenant):
         json={"hostname": "web-03"},
     )
     assert r.status_code == 403
+
+
+def test_unauthenticated_no_override_returns_401(client_no_auth, tenant):
+    r = client_no_auth.get(f"/api/v1/tenants/{tenant.id}/assets")
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "UNAUTHORIZED"
