@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import uuid
 
@@ -23,32 +22,37 @@ _AUDIT_METHODS = {"POST", "PATCH", "DELETE"}
 
 
 def _write_audit_row(tenant_id_str: str | None, method: str, path: str, status: int) -> None:
-    # shortcut: no-op in SQLite test environments; bypass_session uses SET LOCAL (Postgres only)
-    if "sqlite" in os.environ.get("DATABASE_URL", "").lower():
-        return
-
-    from app.db.models import AuditLog
-    from app.db.session import bypass_session
-
-    gen = bypass_session()
-    db = next(gen)
     try:
-        db.add(AuditLog(
-            tenant_id=uuid.UUID(tenant_id_str) if tenant_id_str else None,
-            action=f"{method} {path}",
-        ))
-        db.flush()
-    except Exception as exc:
-        logger.warning("audit middleware: failed to write row: %s", exc)
+        from app.core.config import get_settings
+        # shortcut: no-op in SQLite test environments; bypass_session uses SET LOCAL (Postgres only)
+        if "sqlite" in get_settings().database_url.lower():
+            return
+
+        from app.db.models import AuditLog
+        from app.db.session import bypass_session
+
+        gen = bypass_session()
+        db = next(gen)
         try:
-            next(gen)
-        except Exception:
+            db.add(AuditLog(
+                tenant_id=uuid.UUID(tenant_id_str) if tenant_id_str else None,
+                action=f"{method} {path}",
+            ))
+            db.flush()
+        except Exception as exc:
+            logger.warning("audit: write failed: %s", exc)
+            try:
+                db.rollback()
+                next(gen)
+            except Exception:
+                pass
+            return
+        try:
+            next(gen)  # commit — StopIteration is normal
+        except StopIteration:
             pass
-        return
-    try:
-        next(gen)  # commit — StopIteration is normal
-    except StopIteration:
-        pass
+    except Exception as exc:
+        logger.warning("audit: setup failed: %s", exc)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
