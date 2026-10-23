@@ -2,6 +2,16 @@
 from packaging.version import InvalidVersion, Version
 
 
+def _parse_ver(s: str | None):
+    """Returns Version on success, None on InvalidVersion or None input."""
+    if s is None:
+        return None
+    try:
+        return Version(s)
+    except InvalidVersion:
+        return None
+
+
 def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool, float]:
     """Return (matched, confidence) for a software CPE against CVE configurations.
 
@@ -45,13 +55,17 @@ def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool,
         except InvalidVersion:
             return False, 0.0  # cannot determine if affected when version is unparseable
 
-        if ver_start and not (sv >= Version(ver_start)):
+        v_start = _parse_ver(ver_start)
+        if v_start is not None and not (sv >= v_start):
             continue
-        if ver_start_excl and not (sv > Version(ver_start_excl)):
+        v_start_excl = _parse_ver(ver_start_excl)
+        if v_start_excl is not None and not (sv > v_start_excl):
             continue
-        if ver_end_excl and not (sv < Version(ver_end_excl)):
+        v_end_excl = _parse_ver(ver_end_excl)
+        if v_end_excl is not None and not (sv < v_end_excl):
             continue
-        if ver_end_incl and not (sv <= Version(ver_end_incl)):
+        v_end_incl = _parse_ver(ver_end_incl)
+        if v_end_incl is not None and not (sv <= v_end_incl):
             continue
 
         return True, 0.9

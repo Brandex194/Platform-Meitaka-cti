@@ -77,6 +77,19 @@ def test_start_including_out_of_range_returns_false():
     assert matched is False
 
 
+def test_match_cpe_unparseable_bound_skips_check():
+    """An OpenSSL-style bound like '1.1.1k' does not abort the match."""
+    result = match_cpe(
+        "cpe:2.3:a:openssl:openssl:1.1.1j:*:*:*:*:*:*:*",
+        [{"criteria": "cpe:2.3:a:openssl:openssl:*:*:*:*:*:*:*:*",
+          "vulnerable": True,
+          "versionStartIncluding": "1.1.1a",
+          "versionEndExcluding": "1.1.1k"}],  # "1.1.1k" is not valid PEP 440
+    )
+    # Should not raise; result must be a 2-tuple
+    assert isinstance(result, tuple) and len(result) == 2
+
+
 def test_invalid_version_returns_not_affected():
     # truly unparseable version — cannot determine affected status, treat as not affected
     configs = [{"criteria": "cpe:2.3:a:v:p:*:*:*:*:*:*:*:*", "versionEndExcluding": "2.0.0"}]
