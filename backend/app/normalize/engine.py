@@ -28,43 +28,43 @@ def normalize_batch(db=None, r=None) -> int:
     count = 0
     last_msg_id = None
     for msg_id, msg_fields in batch:
-        msg_type = msg_fields.get("type", "")
+        # Parse message header — skip poison pills, never block the stream
+        try:
+            msg_type = msg_fields.get("type", "unknown")
+            raw_data = msg_fields.get("data", "{}")
+            data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+        except (json.JSONDecodeError, KeyError) as exc:
+            logger.warning("normalize: malformed message %s: %s", msg_id, exc)
+            count += 1
+            last_msg_id = msg_id
+            continue
+
+        # DB operations propagate — halt batch, do not save cursor
         if msg_type == "cve":
-            data = json.loads(msg_fields["data"])
             cve_id = _upsert_vulnerability(data, db)
             publish(OUTPUT_STREAM, {"type": "vulnerability", "cve_id": cve_id}, r)
         elif msg_type == "leak":
-            _upsert_leak(_msg_to_data(msg_fields), db)
+            _upsert_leak(data, db)
         elif msg_type == "indicator":
-            _upsert_indicator(_msg_to_data(msg_fields), db)
+            _upsert_indicator(data, db)
         else:
             logger.warning("normalize_batch: unknown message type %r — skipping", msg_type)
         count += 1
         last_msg_id = msg_id
 
-    # save_cursor only reached if no exception above
-    save_cursor(CURSOR_STREAM, last_msg_id, r)
-    # shortcut: flush not commit; caller (daemon) owns the transaction lifecycle
+    # flush DB before advancing cursor — if flush raises, cursor stays put
     db.flush()
+    save_cursor(CURSOR_STREAM, last_msg_id, r)
     return count
 
-
-def _msg_to_data(msg_fields: dict) -> dict:
-    """Return parsed data dict: decode 'data' JSON key if present, else return fields as-is."""
-    if "data" in msg_fields:
-        return json.loads(msg_fields["data"])
-    return dict(msg_fields)
 
 
 def _upsert_vulnerability(data: dict, db) -> str:
     cve_id = data["id"]
-    description = data.get("descriptions", [{}])[0].get("value", "")[:2000]
-    cvss_score = (
-        data.get("metrics", {})
-        .get("cvssMetricV31", [{}])[0]
-        .get("cvssData", {})
-        .get("baseScore")
-    )
+    descriptions = data.get("descriptions", [])
+    description = (descriptions[0].get("value", "") if descriptions else "")[:2000]
+    metrics_v31 = data.get("metrics", {}).get("cvssMetricV31", [])
+    cvss_score = metrics_v31[0].get("cvssData", {}).get("baseScore") if metrics_v31 else None
     db.merge(
         Vulnerability(
             id=uuid.uuid5(NAMESPACE_URL, cve_id),
