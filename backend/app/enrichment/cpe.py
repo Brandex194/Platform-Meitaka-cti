@@ -3,7 +3,10 @@ from packaging.version import InvalidVersion, Version
 
 
 def _parse_ver(s: str | None):
-    """Returns Version on success, None on InvalidVersion or None input."""
+    """Returns Version on success, None on InvalidVersion or None input.
+
+    # shortcut: unparseable NVD bounds are ignored (fail-open); add manual review for OpenSSL-style CVEs
+    """
     if s is None:
         return None
     try:

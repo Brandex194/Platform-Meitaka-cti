@@ -78,16 +78,21 @@ def test_start_including_out_of_range_returns_false():
 
 
 def test_match_cpe_unparseable_bound_skips_check():
-    """An OpenSSL-style bound like '1.1.1k' does not abort the match."""
+    """OpenSSL-style bounds like '1.1.1k' (non-PEP-440) are skipped, not raised.
+
+    sw_version "1.1.1" IS valid PEP 440; bound "1.1.1k" is NOT.
+    Pre-fix: Version("1.1.1k") raises InvalidVersion → batch abort.
+    Post-fix: _parse_ver("1.1.1k") → None → bound skipped → returns (True, 0.9).
+    """
     result = match_cpe(
-        "cpe:2.3:a:openssl:openssl:1.1.1j:*:*:*:*:*:*:*",
+        "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*",
         [{"criteria": "cpe:2.3:a:openssl:openssl:*:*:*:*:*:*:*:*",
           "vulnerable": True,
-          "versionStartIncluding": "1.1.1a",
+          "versionStartIncluding": "1.0.0",
           "versionEndExcluding": "1.1.1k"}],  # "1.1.1k" is not valid PEP 440
     )
-    # Should not raise; result must be a 2-tuple
-    assert isinstance(result, tuple) and len(result) == 2
+    # versionEndExcluding "1.1.1k" is unparseable → skipped → match is True
+    assert result == (True, 0.9)
 
 
 def test_invalid_version_returns_not_affected():
