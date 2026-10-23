@@ -2,6 +2,12 @@
 from unittest.mock import MagicMock, patch
 
 
+def test_default_queue_is_sentinel():
+    from app.worker.celery_app import celery_app
+
+    assert celery_app.conf.task_default_queue == "sentinel"
+
+
 def test_required_tasks_registered():
     """All 6 required task names are registered in the celery app."""
     import app.worker.tasks  # noqa: F401 — side-effect: registers tasks

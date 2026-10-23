@@ -31,11 +31,17 @@ def _all_tenant_ids():
     db = next(gen)
     try:
         ids = db.execute(select(Tenant.id)).scalars().all()
-    finally:
+    except Exception:
+        db.rollback()
         try:
             next(gen)
-        except StopIteration:
+        except Exception:
             pass
+        raise
+    try:
+        next(gen)
+    except StopIteration:
+        pass
     return ids
 
 
@@ -45,11 +51,17 @@ def _run_with_db_and_redis(fn):
     db = next(gen)
     try:
         result = fn(db, get_redis())
-    finally:
+    except Exception:
+        db.rollback()
         try:
             next(gen)
-        except StopIteration:
+        except Exception:
             pass
+        raise
+    try:
+        next(gen)
+    except StopIteration:
+        pass
     return result
 
 
@@ -106,12 +118,29 @@ def enrich() -> int:
 
 
 @celery_app.task(name="sentinel.tasks.correlate")
-def correlate() -> int:
+def correlate() -> dict:
+    tenant_ids = _all_tenant_ids()
     engine = CorrelationEngine()
-    return sum(engine.run_for_tenant(tid) for tid in _all_tenant_ids())
+    failures = 0
+    for tid in tenant_ids:
+        try:
+            engine.run_for_tenant(tid)
+        except Exception as exc:
+            logger.exception("correlate: failed for tenant %s: %s", tid, exc)
+            failures += 1
+    return {"tenants": len(tenant_ids), "failures": failures}
 
 
 @celery_app.task(name="sentinel.tasks.risk_and_alert")
-def risk_and_alert() -> int:
-    results = [risk_run_for_tenant(tid) for tid in _all_tenant_ids()]
-    return sum(r.get("scores_computed", 0) for r in results)
+def risk_and_alert() -> dict:
+    tenant_ids = _all_tenant_ids()
+    failures = 0
+    scores = 0
+    for tid in tenant_ids:
+        try:
+            result = risk_run_for_tenant(tid)
+            scores += result.get("scores_computed", 0)
+        except Exception as exc:
+            logger.exception("risk_and_alert: failed for tenant %s: %s", tid, exc)
+            failures += 1
+    return {"tenants": len(tenant_ids), "scores_computed": scores, "failures": failures}
