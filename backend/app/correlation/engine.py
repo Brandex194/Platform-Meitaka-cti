@@ -36,31 +36,68 @@ def _event_exists(session, event: CorrelationEvent) -> bool:
     return q.first() is not None
 
 
+def _publish_events(tenant_id, new_event_ids: list, r) -> None:
+    """Publish one stream message per new event. Failures are non-fatal."""
+    for event_id in new_event_ids:
+        try:
+            publish(
+                "correlation-events",
+                {
+                    "type": "correlation_created",
+                    "tenant_id": str(tenant_id),
+                    "correlation_event_id": str(event_id),
+                },
+                r=r,
+            )
+        except Exception as exc:
+            logger.warning("correlate: failed to publish event %s: %s", event_id, exc)
+
+
 class CorrelationEngine:
     def run_for_tenant(self, tenant_id, session=None, r=None) -> int:
         """Run all correlation rules for *tenant_id*. Returns count of new events created.
 
         Pass *session* in tests to avoid touching the real DB.
         Pass *r* (Redis client) in tests; if None, a real Redis connection is attempted.
+        Stream publish happens AFTER commit so consumers only see durable event IDs.
         """
         if session is not None:
-            return self._run(session, tenant_id, r)
+            new_event_ids: list = []
+            count = self._run(session, tenant_id, new_event_ids)
+            _publish_events(tenant_id, new_event_ids, r)
+            return count
+
         from app.db.session import bypass_session  # lazy: avoids Settings() at import time
+        from app.streams.client import get_redis
+
+        new_event_ids = []
         gen = bypass_session()
         db = next(gen)
         try:
-            count = self._run(db, tenant_id, r)
+            count = self._run(db, tenant_id, new_event_ids)
+            db.flush()
         except Exception:
             db.rollback()
-            raise
-        finally:
             try:
                 next(gen)
-            except (StopIteration, Exception):
-                pass  # commit error after rollback is safe to ignore — data already rolled back
+            except StopIteration:
+                pass
+            raise
+
+        # Commit — StopIteration is normal generator exhaustion; other exceptions propagate
+        try:
+            next(gen)
+        except StopIteration:
+            pass
+
+        # Publish AFTER commit: at-least-once delivery; events are durable before consumers see them
+        if r is None:
+            r = get_redis()
+        _publish_events(tenant_id, new_event_ids, r)
+
         return count
 
-    def _run(self, session, tenant_id, r=None) -> int:
+    def _run(self, session, tenant_id, new_event_ids: list) -> int:
         count = 0
         for rule_fn in _RULES:
             try:
@@ -79,18 +116,7 @@ class CorrelationEngine:
                         correlation_event_id=event.id,
                     )
                 )
-                try:
-                    publish(
-                        "correlation-events",
-                        {
-                            "type": "correlation_created",
-                            "tenant_id": str(tenant_id),
-                            "correlation_event_id": str(event.id),
-                        },
-                        r=r,
-                    )
-                except Exception as exc:
-                    logger.warning("correlate: stream publish failed for event %s: %s", event.id, exc)
+                new_event_ids.append(event.id)
                 count += 1
         session.flush()
         return count
