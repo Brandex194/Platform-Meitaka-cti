@@ -1,9 +1,11 @@
 import logging
+import os
 import re
 import uuid
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -16,8 +18,37 @@ _SECURITY_HEADERS = {
     "Strict-Transport-Security": "max-age=31536000",
 }
 
-_TENANT_PATH_RE = re.compile(r"/tenants/([0-9a-f-]{36})/")
+_TENANT_PATH_RE = re.compile(r"/tenants/([0-9a-fA-F-]{36})/")
 _AUDIT_METHODS = {"POST", "PATCH", "DELETE"}
+
+
+def _write_audit_row(tenant_id_str: str | None, method: str, path: str, status: int) -> None:
+    # shortcut: no-op in SQLite test environments; bypass_session uses SET LOCAL (Postgres only)
+    if "sqlite" in os.environ.get("DATABASE_URL", "").lower():
+        return
+
+    from app.db.models import AuditLog
+    from app.db.session import bypass_session
+
+    gen = bypass_session()
+    db = next(gen)
+    try:
+        db.add(AuditLog(
+            tenant_id=uuid.UUID(tenant_id_str) if tenant_id_str else None,
+            action=f"{method} {path}",
+        ))
+        db.flush()
+    except Exception as exc:
+        logger.warning("audit middleware: failed to write row: %s", exc)
+        try:
+            next(gen)
+        except Exception:
+            pass
+        return
+    try:
+        next(gen)  # commit — StopIteration is normal
+    except StopIteration:
+        pass
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -33,20 +64,14 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         if request.method in _AUDIT_METHODS and response.status_code < 400:
             m = _TENANT_PATH_RE.search(request.url.path)
-            if m:
-                try:
-                    from app.db.models import AuditLog
-                    from app.db.session import SessionLocal
-                    tenant_id = uuid.UUID(m.group(1))
-                    with SessionLocal() as session:
-                        session.add(AuditLog(
-                            tenant_id=tenant_id,
-                            action=f"{request.method.lower()}:{request.url.path}",
-                        ))
-                        session.commit()
-                except Exception:
-                    # shortcut: best-effort audit; upgrade to reliable store in Phase 3
-                    logger.debug("audit log write failed (non-fatal)", exc_info=True)
+            tenant_id_str = m.group(1) if m else None
+            await run_in_threadpool(
+                _write_audit_row,
+                tenant_id_str,
+                request.method,
+                request.url.path,
+                response.status_code,
+            )
         return response
 
 
