@@ -61,7 +61,7 @@ def test_full_pipeline_produces_score():
         mock_r.get.return_value = None  # no cursor stored
 
         assert normalize_batch(db=db, r=mock_r)[0] == 0
-        assert enrich_batch(db=db, r=mock_r)[0] == 0
+        assert enrich_batch(db=db, r=mock_r)[0] == 0  # (count, last_msg_id, pending)
 
         # run_for_tenant accepts db directly — no bypass_session needed
         result = run_for_tenant(tenant_id=tenant.id, db=db)

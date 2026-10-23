@@ -4,7 +4,7 @@ import logging
 import httpx
 
 from app.db.models import KevCatalog, Vulnerability
-from app.streams.streams import get_cursor, publish, read_batch, save_cursor
+from app.streams.streams import get_cursor, read_batch, save_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -13,26 +13,31 @@ OUTPUT_STREAM = "correlation-events"
 BATCH_SIZE = 100
 
 
-def enrich_batch(db=None, r=None) -> tuple[int, str | None]:
+def enrich_batch(db=None, r=None) -> tuple[int, str | None, list]:
     """Read one batch from enriched-entities, enrich vulnerability rows.
 
-    Returns (count, last_msg_id). Caller must save cursor AFTER commit.
+    Returns (count, last_msg_id, pending_publishes). Caller must:
+      - save cursor AFTER commit
+      - publish pending_publishes AFTER commit
     Cursor NOT advanced on exception. Per-message guard covers parse/type errors; DB errors propagate.
     """
     cursor = get_cursor(CURSOR_STREAM, r)
     batch = read_batch(CURSOR_STREAM, cursor, BATCH_SIZE, r)
     if not batch:
-        return 0, None
+        return 0, None, []
 
     count = 0
     last_msg_id = None
+    pending_publishes: list = []
     for msg_id, msg_fields in batch:
         try:
             msg_type = msg_fields.get("type")
             if msg_type == "vulnerability":
                 cve_id = msg_fields.get("cve_id")
                 if cve_id:
-                    _enrich_vulnerability(cve_id, db, r)
+                    payload = _enrich_vulnerability(cve_id, db)
+                    if payload:
+                        pending_publishes.append((OUTPUT_STREAM, payload))
                 else:
                     logger.warning("enrich: missing cve_id in message %s", msg_id)
             else:
@@ -43,15 +48,16 @@ def enrich_batch(db=None, r=None) -> tuple[int, str | None]:
         count += 1
         last_msg_id = msg_id
 
-    # cursor saved by caller after commit
-    return count, last_msg_id
+    # cursor and publishes are handled by caller after commit
+    return count, last_msg_id, pending_publishes
 
 
-def _enrich_vulnerability(cve_id: str, db, r) -> None:
+def _enrich_vulnerability(cve_id: str, db) -> dict | None:
+    """Enrich one vulnerability. Returns the publish payload, or None if vuln not found."""
     vuln = db.query(Vulnerability).filter_by(cve_id=cve_id).one_or_none()
     if vuln is None:
         logger.warning("enrich: vulnerability not found: %s", cve_id)
-        return
+        return None
 
     # KEV from catalog table — never from HTTP
     kev = db.query(KevCatalog).filter_by(cve_id=cve_id).one_or_none()
@@ -71,13 +77,9 @@ def _enrich_vulnerability(cve_id: str, db, r) -> None:
         logger.warning("enrich: EPSS fetch failed for %s: %s", cve_id, exc)
 
     db.flush()
-    publish(
-        OUTPUT_STREAM,
-        {
-            "type": "vulnerability_enriched",
-            "cve_id": cve_id,
-            "epss": str(vuln.epss_score or 0),
-            "in_kev": str(bool(vuln.kev_date_added)),
-        },
-        r=r,
-    )
+    return {
+        "type": "vulnerability_enriched",
+        "cve_id": cve_id,
+        "epss": str(vuln.epss_score or 0),
+        "in_kev": str(bool(vuln.kev_date_added)),
+    }

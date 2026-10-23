@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from app.db.models import KevCatalog, Vulnerability
-from app.enrichment.engine import enrich_batch
+from app.enrichment.engine import OUTPUT_STREAM, enrich_batch
 from app.streams.streams import publish, save_cursor
 
 
@@ -27,9 +27,10 @@ def _make_vuln(db_session, cve_id: str) -> Vulnerability:
 
 
 def test_enrich_batch_empty(db_session, fake_redis):
-    count, last_msg_id = enrich_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, pending = enrich_batch(db=db_session, r=fake_redis)
     assert count == 0
     assert last_msg_id is None
+    assert pending == []
 
 
 def test_enrich_updates_kev(db_session, fake_redis, httpx_mock):
@@ -42,11 +43,13 @@ def test_enrich_updates_kev(db_session, fake_redis, httpx_mock):
     db_session.flush()
 
     publish("enriched-entities", {"type": "vulnerability", "cve_id": cve_id}, r=fake_redis)
-    count, last_msg_id = enrich_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, pending = enrich_batch(db=db_session, r=fake_redis)
     if last_msg_id:
         save_cursor("enriched-entities", last_msg_id, fake_redis)
 
     assert count == 1
+    assert len(pending) == 1
+    assert pending[0][0] == OUTPUT_STREAM
     db_session.refresh(v)
     assert v.kev_date_added == date(2024, 1, 1)
 
@@ -59,7 +62,7 @@ def test_enrich_epss_set_when_api_succeeds(db_session, fake_redis, httpx_mock):
 
     v = _make_vuln(db_session, cve_id)
     publish("enriched-entities", {"type": "vulnerability", "cve_id": cve_id}, r=fake_redis)
-    count, _ = enrich_batch(db=db_session, r=fake_redis)
+    count, _, _ = enrich_batch(db=db_session, r=fake_redis)
 
     assert count == 1
     db_session.refresh(v)
@@ -72,7 +75,7 @@ def test_enrich_epss_error_skips(db_session, fake_redis, httpx_mock):
 
     v = _make_vuln(db_session, cve_id)
     publish("enriched-entities", {"type": "vulnerability", "cve_id": cve_id}, r=fake_redis)
-    count, _ = enrich_batch(db=db_session, r=fake_redis)
+    count, _, _ = enrich_batch(db=db_session, r=fake_redis)
 
     assert count == 1
     db_session.refresh(v)
@@ -86,8 +89,9 @@ def test_enrich_missing_vuln_skips(db_session, fake_redis, httpx_mock):
         {"type": "vulnerability", "cve_id": "CVE-2024-GHOST"},
         r=fake_redis,
     )
-    count, _ = enrich_batch(db=db_session, r=fake_redis)
+    count, _, pending = enrich_batch(db=db_session, r=fake_redis)
     assert count == 1
+    assert pending == []  # no publish when vuln not found
 
 
 def test_kev_read_from_table_not_http(db_session, fake_redis, httpx_mock):

@@ -20,13 +20,16 @@ def get_db():
         yield session
 
 
-def get_tenant_scoped_db(tenant_id: uuid.UUID):
-    """Dependency yielding a session scoped to the given tenant via SET LOCAL."""
+def get_tenant_scoped_db(tenant_id: str):
+    """Yield a session with RLS context set. Caller owns the transaction boundary."""
     db = SessionLocal()
     try:
-        with db.begin():
-            db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": str(tenant_id)})
-            yield db
+        db.begin()
+        db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+            {"tid": str(tenant_id)},
+        )
+        yield db
     finally:
         db.close()
 

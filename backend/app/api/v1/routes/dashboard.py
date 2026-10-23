@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.jwks import decode_token
@@ -19,6 +19,15 @@ def dashboard(
     tenant_id_str = payload.get("tenant_id")
     if not tenant_id_str:
         return {"open_cases": 0, "top_assets": []}
+
+    # Set RLS context so Postgres policies apply correctly (no-op on non-Postgres)
+    try:
+        db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+            {"tid": tenant_id_str},
+        )
+    except Exception:
+        pass
 
     tenant_id = uuid.UUID(tenant_id_str)
 

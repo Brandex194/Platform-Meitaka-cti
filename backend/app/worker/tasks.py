@@ -46,7 +46,7 @@ def _all_tenant_ids():
 
 
 def _run_with_db_and_redis(fn):
-    """Open bypass_session + redis, call fn(db, r), commit, save cursor, return count."""
+    """Open bypass_session + redis, call fn(db, r), commit, save cursor, publish, return count."""
     r = get_redis()
     gen = bypass_session()
     db = next(gen)
@@ -64,14 +64,23 @@ def _run_with_db_and_redis(fn):
         next(gen)  # commit
     except StopIteration:
         pass
-    # Save cursor AFTER commit so it only advances on durable writes
-    if isinstance(result, tuple) and len(result) >= 2:
-        count, last_msg_id = result[0], result[1]
+    # After commit: save cursor and fire any pending publishes
+    if isinstance(result, tuple):
+        count = result[0]
+        last_msg_id = result[1] if len(result) > 1 else None
+        pending = result[2] if len(result) > 2 else []
         if last_msg_id:
-            from app.streams.streams import save_cursor
+            from app.streams.streams import save_cursor, publish
             cursor_stream = fn.__globals__.get("CURSOR_STREAM")
             if cursor_stream:
                 save_cursor(cursor_stream, last_msg_id, r)
+        else:
+            from app.streams.streams import publish
+        for stream, payload in pending:
+            try:
+                publish(stream, payload, r=r)
+            except Exception as exc:
+                logger.warning("post-commit publish failed: %s", exc)
         return count
     return result
 
