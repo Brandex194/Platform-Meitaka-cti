@@ -68,7 +68,6 @@ class CorrelationEngine:
             return count
 
         from app.db.session import bypass_session  # lazy: avoids Settings() at import time
-        from app.streams.client import get_redis
 
         new_event_ids = []
         gen = bypass_session()
@@ -80,9 +79,9 @@ class CorrelationEngine:
             db.rollback()
             try:
                 next(gen)
-            except StopIteration:
-                pass
-            raise
+            except Exception:
+                pass  # cleanup failure must not shadow the original exception
+            raise  # re-raise the original
 
         # Commit — StopIteration is normal generator exhaustion; other exceptions propagate
         try:
@@ -91,8 +90,7 @@ class CorrelationEngine:
             pass
 
         # Publish AFTER commit: at-least-once delivery; events are durable before consumers see them
-        if r is None:
-            r = get_redis()
+        # r=None is passed through to publish(), which calls get_redis() internally
         _publish_events(tenant_id, new_event_ids, r)
 
         return count
