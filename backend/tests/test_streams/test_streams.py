@@ -5,41 +5,69 @@ from app.streams.streams import get_cursor, publish, read_batch, save_cursor
 
 
 @pytest.fixture
-def r():
+def fake_redis():
     return fakeredis.FakeRedis(decode_responses=True)
 
 
-def test_publish_returns_msg_id(r):
-    msg_id = publish("raw-observations", {"k": "v"}, r=r)
+def test_publish_returns_msg_id(fake_redis):
+    msg_id = publish("raw-observations", {"k": "v"}, r=fake_redis)
     assert isinstance(msg_id, str)
     assert "-" in msg_id
 
 
-def test_read_batch_returns_messages(r):
-    publish("raw-observations", {"k": "v"}, r=r)
-    result = read_batch("raw-observations", "0-0", r=r)
+def test_read_batch_returns_messages(fake_redis):
+    publish("raw-observations", {"k": "v"}, r=fake_redis)
+    result = read_batch("raw-observations", "0-0", r=fake_redis)
     assert len(result) == 1
     msg_id, fields = result[0]
     assert fields["k"] == "v"
 
 
-def test_cursor_round_trip(r):
-    save_cursor("raw-observations", "123-0", r=r)
-    assert get_cursor("raw-observations", r=r) == "123-0"
+def test_cursor_round_trip(fake_redis):
+    save_cursor("raw-observations", "123-0", r=fake_redis)
+    assert get_cursor("raw-observations", r=fake_redis) == "123-0"
 
 
-def test_get_cursor_default(r):
-    assert get_cursor("no-such-stream", r=r) == "0-0"
+def test_get_cursor_default(fake_redis):
+    assert get_cursor("no-such-stream", r=fake_redis) == "0-0"
 
 
-def test_read_batch_empty(r):
-    result = read_batch("raw-observations", "0-0", r=r)
+def test_read_batch_empty(fake_redis):
+    result = read_batch("raw-observations", "0-0", r=fake_redis)
     assert result == []
 
 
-def test_cursor_not_advanced_on_empty(r):
-    # Cursor stays at "0-0" when read_batch returns nothing (empty stream)
-    save_cursor("raw-observations", "0-0", r=r)
-    result = read_batch("raw-observations", "0-0", r=r)
+def test_cursor_not_advanced_on_empty(fake_redis):
+    # read_batch on empty stream returns [] without touching cursor
+    save_cursor("raw-observations", "0-0", r=fake_redis)
+    result = read_batch("raw-observations", "0-0", r=fake_redis)
     assert result == []
-    assert get_cursor("raw-observations", r=r) == "0-0"
+    assert get_cursor("raw-observations", r=fake_redis) == "0-0"
+
+
+def test_cursor_not_advanced_on_exception(fake_redis):
+    """Cursor must not advance if processing raises — caller decides when to save."""
+    # Publish a message, read it
+    publish("raw-observations", {"k": "v"}, r=fake_redis)
+    batch = read_batch("raw-observations", "0-0", r=fake_redis)
+    assert len(batch) == 1
+    msg_id, _ = batch[0]
+
+    # Simulate processing failure: cursor was NOT saved
+    # (save_cursor never called)
+    cursor = get_cursor("raw-observations", r=fake_redis)
+    assert cursor == "0-0"  # Still at default, not advanced
+
+
+def test_read_batch_exclusive_lower_bound(fake_redis):
+    """Reading from last returned ID should return [] (exclusive bound)."""
+    publish("raw-observations", {"k": "1"}, r=fake_redis)
+    publish("raw-observations", {"k": "2"}, r=fake_redis)
+
+    batch = read_batch("raw-observations", "0-0", r=fake_redis)
+    assert len(batch) == 2
+    last_id = batch[-1][0]
+
+    # Read from the last ID — should be empty (exclusive)
+    second_batch = read_batch("raw-observations", last_id, r=fake_redis)
+    assert second_batch == []

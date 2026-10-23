@@ -4,12 +4,6 @@ import redis
 
 from app.streams.client import get_redis
 
-STREAMS = {
-    "raw_observations": "raw-observations",
-    "enriched_entities": "enriched-entities",
-    "correlation_events": "correlation-events",
-    "feedback_events": "feedback-events",
-}
 MAXLEN = 50_000
 CURSOR_KEY_PREFIX = "stream:cursor:"
 
