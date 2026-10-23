@@ -46,17 +46,25 @@ def test_cursor_not_advanced_on_empty(fake_redis):
 
 
 def test_cursor_not_advanced_on_exception(fake_redis):
-    """Cursor must not advance if processing raises — caller decides when to save."""
-    # Publish a message, read it
+    """Cursor must not advance if processing raises — caller is responsible for save_cursor."""
     publish("raw-observations", {"k": "v"}, r=fake_redis)
     batch = read_batch("raw-observations", "0-0", r=fake_redis)
     assert len(batch) == 1
     msg_id, _ = batch[0]
 
-    # Simulate processing failure: cursor was NOT saved
-    # (save_cursor never called)
+    # Simulate: processing fails — save_cursor is never called
+    try:
+        raise RuntimeError("simulated processing failure")
+    except RuntimeError:
+        pass  # caller does NOT call save_cursor on failure
+
+    # Cursor must still be at the default "0-0"
     cursor = get_cursor("raw-observations", r=fake_redis)
-    assert cursor == "0-0"  # Still at default, not advanced
+    assert cursor == "0-0"
+
+    # Verify: if processing succeeds, save_cursor advances the cursor
+    save_cursor("raw-observations", msg_id, r=fake_redis)
+    assert get_cursor("raw-observations", r=fake_redis) == msg_id
 
 
 def test_read_batch_exclusive_lower_bound(fake_redis):
