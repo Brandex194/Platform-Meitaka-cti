@@ -5,7 +5,7 @@ import fakeredis
 import pytest
 
 from app.db.models import Vulnerability
-from app.normalize.engine import normalize_batch
+from app.normalize.engine import OUTPUT_STREAM, normalize_batch
 from app.streams.streams import get_cursor, publish, save_cursor
 
 
@@ -27,12 +27,14 @@ def test_normalize_cve_upserts_vulnerability(db_session, fake_redis):
     }
     publish("raw-observations", {"type": "cve", "data": json.dumps(cve_payload)}, r=fake_redis)
 
-    count, last_msg_id = normalize_batch(db=db_session, r=fake_redis)
-    # task wrapper saves cursor after commit; simulate that here
+    count, last_msg_id, pending = normalize_batch(db=db_session, r=fake_redis)
+    # task wrapper publishes then saves cursor after commit; simulate that here
     if last_msg_id:
         save_cursor("raw-observations", last_msg_id, fake_redis)
 
     assert count == 1
+    assert len(pending) == 1
+    assert pending[0][0] == OUTPUT_STREAM
     assert db_session.query(Vulnerability).filter_by(cve_id="CVE-2024-1234").count() == 1
     vuln = db_session.query(Vulnerability).filter_by(cve_id="CVE-2024-1234").one()
     assert vuln.cvss_score == 7.5
@@ -42,7 +44,7 @@ def test_normalize_cve_upserts_vulnerability(db_session, fake_redis):
 def test_normalize_unknown_type_skips(db_session, fake_redis):
     publish("raw-observations", {"type": "unknown_xyz", "data": "{}"}, r=fake_redis)
 
-    count, last_msg_id = normalize_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, _ = normalize_batch(db=db_session, r=fake_redis)
     if last_msg_id:
         save_cursor("raw-observations", last_msg_id, fake_redis)
 
@@ -51,15 +53,16 @@ def test_normalize_unknown_type_skips(db_session, fake_redis):
 
 
 def test_normalize_empty_stream_returns_zero(db_session, fake_redis):
-    count, last_msg_id = normalize_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, pending = normalize_batch(db=db_session, r=fake_redis)
     assert count == 0
     assert last_msg_id is None
+    assert pending == []
 
 
 def test_normalize_malformed_message_skips(db_session, fake_redis):
     publish("raw-observations", {"type": "cve", "data": "not-json"}, r=fake_redis)
 
-    count, last_msg_id = normalize_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, _ = normalize_batch(db=db_session, r=fake_redis)
     if last_msg_id:
         save_cursor("raw-observations", last_msg_id, fake_redis)
 
@@ -71,7 +74,7 @@ def test_normalize_cve_missing_id_skips(db_session, fake_redis):
     """CVE with no 'id' field is skipped; cursor still advances."""
     publish("raw-observations", {"type": "cve", "data": '{"not_id": "blah"}'}, r=fake_redis)
 
-    count, last_msg_id = normalize_batch(db=db_session, r=fake_redis)
+    count, last_msg_id, _ = normalize_batch(db=db_session, r=fake_redis)
     if last_msg_id:
         save_cursor("raw-observations", last_msg_id, fake_redis)
 

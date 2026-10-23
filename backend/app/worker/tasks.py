@@ -64,23 +64,17 @@ def _run_with_db_and_redis(fn):
         next(gen)  # commit
     except StopIteration:
         pass
-    # After commit: save cursor and fire any pending publishes
+    # After commit: publish FIRST (failure retries the task), then save cursor
     if isinstance(result, tuple):
+        from app.streams.streams import publish, save_cursor
         count = result[0]
         last_msg_id = result[1] if len(result) > 1 else None
         pending = result[2] if len(result) > 2 else []
-        if last_msg_id:
-            from app.streams.streams import save_cursor, publish
-            cursor_stream = fn.__globals__.get("CURSOR_STREAM")
-            if cursor_stream:
-                save_cursor(cursor_stream, last_msg_id, r)
-        else:
-            from app.streams.streams import publish
+        cursor_stream = fn.__globals__.get("CURSOR_STREAM")
         for stream, payload in pending:
-            try:
-                publish(stream, payload, r=r)
-            except Exception as exc:
-                logger.warning("post-commit publish failed: %s", exc)
+            publish(stream, payload, r=r)  # propagate — Celery retries; DB upserts are idempotent
+        if last_msg_id and cursor_stream:
+            save_cursor(cursor_stream, last_msg_id, r)
         return count
     return result
 

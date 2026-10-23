@@ -5,7 +5,7 @@ import uuid
 from uuid import NAMESPACE_URL
 
 from app.db.models import Indicator, Leak, Vulnerability
-from app.streams.streams import get_cursor, publish, read_batch, save_cursor
+from app.streams.streams import get_cursor, read_batch, save_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -14,19 +14,20 @@ OUTPUT_STREAM = "enriched-entities"
 BATCH_SIZE = 100
 
 
-def normalize_batch(db=None, r=None) -> tuple[int, str | None]:
+def normalize_batch(db=None, r=None) -> tuple[int, str | None, list]:
     """Read one batch from raw-observations, upsert entities.
 
-    Returns (count, last_msg_id). Caller must save cursor AFTER commit.
+    Returns (count, last_msg_id, pending_publishes). Caller must publish THEN save cursor AFTER commit.
     On exception, cursor is NOT advanced (re-raised to caller).
     """
     cursor = get_cursor(CURSOR_STREAM, r)
     batch = read_batch(CURSOR_STREAM, cursor, BATCH_SIZE, r)
     if not batch:
-        return 0, None
+        return 0, None, []
 
     count = 0
     last_msg_id = None
+    pending_publishes: list = []
     for msg_id, msg_fields in batch:
         # Parse + dispatch wrapped together — skip poison pills without blocking the stream.
         # DB errors (IntegrityError, OperationalError) are NOT listed and propagate to halt the batch.
@@ -39,7 +40,7 @@ def normalize_batch(db=None, r=None) -> tuple[int, str | None]:
 
             if msg_type == "cve":
                 cve_id = _upsert_vulnerability(data, db)
-                publish(OUTPUT_STREAM, {"type": "vulnerability", "cve_id": cve_id}, r=r)
+                pending_publishes.append((OUTPUT_STREAM, {"type": "vulnerability", "cve_id": cve_id}))
             elif msg_type == "leak":
                 _upsert_leak(data, db)
             elif msg_type == "indicator":
@@ -53,9 +54,9 @@ def normalize_batch(db=None, r=None) -> tuple[int, str | None]:
         count += 1
         last_msg_id = msg_id
 
-    # flush DB before returning — cursor saved by caller after commit
+    # flush DB before returning — caller publishes then saves cursor after commit
     db.flush()
-    return count, last_msg_id
+    return count, last_msg_id, pending_publishes
 
 
 
