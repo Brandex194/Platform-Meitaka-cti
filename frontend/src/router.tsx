@@ -9,6 +9,7 @@ import { Assets } from './pages/Assets'
 import { Scores } from './pages/Scores'
 import { Exposure } from './pages/Exposure'
 import { Analysis } from './pages/Analysis'
+import { Cases } from './pages/Cases'
 
 function TenantPage({ Page }: { Page: ComponentType<{ tenantId: string }> }) {
   const { user } = useAuthStore()
@@ -29,7 +30,7 @@ export const router = createBrowserRouter([
           { path: '/scores', element: <TenantPage Page={Scores} /> },
           { path: '/exposure', element: <TenantPage Page={Exposure} /> },
           { path: '/analysis', element: <TenantPage Page={Analysis} /> },
-          { path: '/cases', element: <div>Cases</div> },
+          { path: '/cases', element: <TenantPage Page={Cases} /> },
           { path: '/actors', element: <div>Actors</div> },
           { path: '/campaigns', element: <div>Campaigns</div> },
           { path: '/observables', element: <div>Observables</div> },
