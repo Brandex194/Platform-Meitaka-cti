@@ -10,6 +10,11 @@ import { Scores } from './pages/Scores'
 import { Exposure } from './pages/Exposure'
 import { Analysis } from './pages/Analysis'
 import { Cases } from './pages/Cases'
+import { Actors } from './pages/Actors'
+import { Campaigns } from './pages/Campaigns'
+import { Observables } from './pages/Observables'
+import { DarkWeb } from './pages/DarkWeb'
+import { Reports } from './pages/Reports'
 
 function TenantPage({ Page }: { Page: ComponentType<{ tenantId: string }> }) {
   const { user } = useAuthStore()
@@ -31,11 +36,11 @@ export const router = createBrowserRouter([
           { path: '/exposure', element: <TenantPage Page={Exposure} /> },
           { path: '/analysis', element: <TenantPage Page={Analysis} /> },
           { path: '/cases', element: <TenantPage Page={Cases} /> },
-          { path: '/actors', element: <div>Actors</div> },
-          { path: '/campaigns', element: <div>Campaigns</div> },
-          { path: '/observables', element: <div>Observables</div> },
-          { path: '/dark-web', element: <div>DarkWeb</div> },
-          { path: '/reports', element: <div>Reports</div> },
+          { path: '/actors', element: <Actors /> },
+          { path: '/campaigns', element: <Campaigns /> },
+          { path: '/observables', element: <TenantPage Page={Observables} /> },
+          { path: '/dark-web', element: <TenantPage Page={DarkWeb} /> },
+          { path: '/reports', element: <TenantPage Page={Reports} /> },
         ],
       },
     ],
