@@ -1,0 +1,26 @@
+auth:
+  adminUser: admin
+  existingSecret: meitaka-secrets
+  passwordSecretKey: KEYCLOAK_ADMIN_PASSWORD
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  host: postgres-postgresql.meitaka.svc
+  port: 5432
+  database: keycloak
+  user: meitaka
+  existingSecret: meitaka-secrets
+  existingSecretPasswordKey: POSTGRES_PASSWORD
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi

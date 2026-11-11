@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meitaka-worker
+  namespace: meitaka
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: meitaka-worker
+  template:
+    metadata:
+      labels:
+        app: meitaka-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/meitaka/api:latest
+          command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "-Q", "sentinel"]
+          envFrom:
+            - secretRef:
+                name: meitaka-secrets
+          env:
+            - name: FAISS_INDEX_PATH
+              value: /data/faiss/ioc.index
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - name: faiss
+              mountPath: /data/faiss
+      volumes:
+        - name: faiss
+          persistentVolumeClaim:
+            claimName: faiss-data

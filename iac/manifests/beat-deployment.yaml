@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meitaka-beat
+  namespace: meitaka
+spec:
+  replicas: 1  # exactly one beat scheduler
+  selector:
+    matchLabels:
+      app: meitaka-beat
+  template:
+    metadata:
+      labels:
+        app: meitaka-beat
+    spec:
+      containers:
+        - name: beat
+          image: ghcr.io/meitaka/api:latest
+          command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info"]
+          envFrom:
+            - secretRef:
+                name: meitaka-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
