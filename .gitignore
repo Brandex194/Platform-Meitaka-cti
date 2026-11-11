@@ -1,0 +1,19 @@
+# Segreti e configurazione locale
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Frontend
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Strumenti locali
+.superpowers/
+graphify-out/

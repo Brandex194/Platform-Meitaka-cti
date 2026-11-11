@@ -1,0 +1,322 @@
+Create an enterprise-grade Cyber Threat Intelligence and Exposure Management platform called "SENTINEL AI".
+
+The platform must look like a real MSSP / SOC / CTI platform used by:
+- SOC teams
+- MSSPs
+- Threat Intelligence analysts
+- Exposure management teams
+
+STYLE:
+- enterprise CTI platform
+- realistic SOC interface
+- clean operational layout
+- dark enterprise theme
+- professional blue palette
+- subtle glassmorphism
+- minimal animations
+
+Avoid:
+- cyberpunk aesthetics
+- hacker visuals
+- fake attack maps
+- random alerts
+- meaningless telemetry
+- neon overload
+
+====================================================
+PLATFORM STRUCTURE
+====================================================
+
+The platform must contain:
+
+1. Global Analyst Dashboard
+2. Customer Risk Detail View
+3. Analyst Operations Section
+
+====================================================
+LEFT SIDEBAR NAVIGATION
+====================================================
+
+The left sidebar must ONLY contain:
+
+- Dashboard
+- Threat Intelligence
+- Threat Actors
+- Campaigns
+- IOC Intelligence
+- Dark Web Intelligence
+- Exposure Operations
+- Reports
+- Settings
+
+IMPORTANT:
+
+The "Customer Risk Detail View" MUST NOT appear in the sidebar.
+
+The customer risk scoring page must ONLY be accessible by clicking a customer directly from the main dashboard customer table.
+
+This must behave like a contextual drill-down investigation workflow used in real MSSP platforms.
+
+====================================================
+1. GLOBAL ANALYST DASHBOARD
+====================================================
+
+The main dashboard must display ALL monitored customers.
+
+For every customer display:
+- customer name
+- sector
+- overall risk score
+- exploitation probability
+- internet exposure level
+- active exploited CVEs
+- ransomware exposure
+- active campaigns
+- remediation urgency
+
+The dashboard must help analysts:
+- identify customers most at risk
+- prioritize remediation
+- understand exposure context
+- correlate threat activity
+
+Include sections for:
+- Today's Threat Landscape
+- Critical CVEs Today
+- Active Threat Actors
+- Priority Remediation Queue
+
+Only display:
+- active campaigns
+- KEV-listed CVEs
+- actively exploited vulnerabilities
+- high EPSS vulnerabilities
+- relevant operational intelligence
+
+Avoid:
+- historical noise
+- random IOC dumps
+- generic statistics
+- meaningless charts
+
+====================================================
+2. CUSTOMER RISK DETAIL VIEW
+====================================================
+
+The Customer Risk Detail View must ONLY open when an analyst clicks a customer from the dashboard.
+
+This page must NOT be accessible directly from the sidebar.
+
+This view represents a dedicated customer exposure intelligence investigation page.
+
+The page must display:
+- overall exposure score
+- exploitation probability
+- confidence level
+- exposed assets
+- internet-facing systems
+- vulnerable software
+- active exploited CVEs
+- threat actor overlap
+- campaign correlation
+- ATT&CK techniques
+- remediation priorities
+
+Each finding must explain WHY the customer is at risk.
+
+Example reasoning:
+- Internet-facing VPN appliance
+- KEV-listed vulnerability
+- Active exploitation observed
+- High EPSS score
+- Finance sector targeted
+- Ransomware activity detected
+
+====================================================
+3. ANALYST OPERATIONS SECTION
+====================================================
+
+The following capabilities must ONLY exist inside analyst operational sections and NEVER inside the customer risk detail page:
+
+- Dark Web Intelligence
+- IOC Enrichment
+- IOC Correlation
+- Exposure Analysis Operations
+- API Key Management
+- Threat Feed Management
+- Intelligence Enrichment Pipelines
+- MISP Integration
+- OpenCTI Integration
+- VirusTotal Enrichment
+- Shodan Correlation
+- AbuseIPDB Analysis
+
+These features are analyst-only operational workflows.
+
+====================================================
+DARK WEB INTELLIGENCE
+====================================================
+
+The Dark Web section must contain:
+- leaked credential monitoring
+- ransomware leak site monitoring
+- onion references
+- actor infrastructure tracking
+- underground mentions
+- credential exposure correlation
+
+The interface must look like:
+- enterprise intelligence tooling
+- operational CTI workflow
+- investigation-centric dashboard
+
+Avoid:
+- cinematic hacker visuals
+- fake dark web screens
+- unrealistic terminal effects
+
+====================================================
+IOC ENRICHMENT & CORRELATION
+====================================================
+
+The IOC section must support:
+- IOC validation
+- infrastructure enrichment
+- passive DNS
+- ASN correlation
+- JA3 matching
+- malware infrastructure reuse
+- campaign association
+- confidence scoring
+
+Do NOT show raw IOC dumps.
+
+Instead show:
+- contextual operational intelligence
+- campaign-linked infrastructure
+- customer impact overlap
+- analyst reasoning
+
+====================================================
+EXPOSURE OPERATIONS
+====================================================
+
+The Exposure Operations section is analyst-only.
+
+It must contain:
+- exposure correlation engine
+- vulnerable asset matching
+- attack path analysis
+- sector targeting analysis
+- internet exposure discovery
+- remediation prioritization
+- customer exposure ranking
+
+====================================================
+API KEY & INTEGRATION MANAGEMENT
+====================================================
+
+API keys and integrations must ONLY exist in analyst settings sections.
+
+The frontend must NEVER expose secrets.
+
+Implement:
+- backend-only API access
+- AES-256 encryption
+- environment variables
+- secret rotation
+- audit logging
+- role-based access control
+
+Supported integrations:
+- CISA KEV
+- NVD
+- EPSS
+- MISP
+- OpenCTI
+- VirusTotal
+- Shodan
+- AbuseIPDB
+
+====================================================
+ML + CORRELATION ENGINE
+====================================================
+
+Implement:
+- rule-based correlation engine
+- ML exposure prediction model
+
+The engine must analyze:
+- KEV presence
+- EPSS
+- internet exposure
+- ransomware activity
+- exploit activity
+- asset criticality
+- targeted sectors
+- attack feasibility
+
+Generate:
+- exploitation probability
+- confidence score
+- contextual reasoning
+- remediation recommendations
+
+Never generate fake AI scores.
+
+====================================================
+CUSTOMER INVENTORY
+====================================================
+
+Use local JSON datasets only.
+
+Simulate:
+- customers
+- assets
+- vulnerabilities
+- software inventory
+- threat feeds
+- campaigns
+
+Each customer must contain:
+- company name
+- sector
+- assets
+- software versions
+- internet exposure
+- criticality
+
+====================================================
+THREAT INTELLIGENCE
+====================================================
+
+Use ONLY real:
+- CVEs
+- threat actors
+- vendors
+- ATT&CK techniques
+- advisories
+- exploitation campaigns
+
+Use:
+- CISA KEV
+- NVD
+- EPSS
+- MITRE ATT&CK
+- vendor advisories
+
+====================================================
+FINAL GOAL
+====================================================
+
+The platform must feel like:
+- a real MSSP platform
+- an enterprise CTI product
+- a customer-centric exposure intelligence system
+
+The result must demonstrate:
+- contextual risk prioritization
+- operational CTI workflows
+- realistic exposure management
+- enterprise-grade threat intelligence reasoning
+- actionable remediation intelligence.
