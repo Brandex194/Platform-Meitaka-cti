@@ -18,7 +18,7 @@ export function Callback() {
   }, [])
 
   return (
-    <div className="flex h-screen items-center justify-center text-gray-500">
+    <div className="flex h-screen items-center justify-center muted">
       Signing in…
     </div>
   )

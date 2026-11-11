@@ -15,7 +15,7 @@ const columns: ColumnDef<CorrelationEvent, any>[] = [
     header: 'Active',
     accessorKey: 'is_active',
     cell: (c) => (
-      <span className={c.getValue<boolean>() ? 'text-green-600' : 'text-red-600'}>
+      <span className={c.getValue<boolean>() ? 'text-[var(--low)]' : 'text-[var(--critical)]'}>
         {c.getValue<boolean>() ? 'Yes' : 'No'}
       </span>
     ),
@@ -34,10 +34,11 @@ export function Analysis({ tenantId }: { tenantId: string }) {
   )
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-3">
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
+          className="accent-[var(--accent)]"
           checked={activeOnly}
           onChange={(e) => setActiveOnly(e.target.checked)}
         />

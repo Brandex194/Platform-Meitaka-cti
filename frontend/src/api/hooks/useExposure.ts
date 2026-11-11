@@ -21,7 +21,7 @@ export function usePatchExposure(tenantId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiPatch(`/api/v1/exposure-matches/${id}`, { status }, user?.access_token),
+      apiPatch(`/api/v1/tenants/${tenantId}/exposure-matches/${id}`, { status }, user?.access_token),
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ['exposure', tenantId] })
       const prev = queryClient.getQueryData(['exposure', tenantId, 1])

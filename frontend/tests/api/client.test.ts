@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
-import { apiGet, apiPost } from '@/api/client'
+import { apiGet, apiPost, apiDelete } from '@/api/client'
 
 beforeEach(() => mockFetch.mockReset())
 
@@ -42,5 +42,23 @@ describe('apiPost', () => {
     await apiPost('/api/v1/cases', { title: 'Test' }, 'tok')
     const [, init] = mockFetch.mock.calls[0]
     expect((init as RequestInit).body).toBe(JSON.stringify({ title: 'Test' }))
+  })
+})
+
+describe('apiDelete', () => {
+  it('resolves on 204 without trying to parse an empty body', async () => {
+    const json = vi.fn().mockRejectedValue(new SyntaxError('Unexpected end of JSON input'))
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 204, json })
+    await expect(apiDelete('/api/v1/tenants/t/cases/1', 'tok')).resolves.toBeUndefined()
+    expect(json).not.toHaveBeenCalled()
+  })
+
+  it('still throws the API message when the delete is refused', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: { code: 'NOT_FOUND', message: 'Case not found', detail: {} } }),
+    })
+    await expect(apiDelete('/api/v1/tenants/t/cases/1', 'tok')).rejects.toThrow('Case not found')
   })
 })

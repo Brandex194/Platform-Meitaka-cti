@@ -11,6 +11,8 @@ async function request<T>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+  // DELETE answers 204 with no body: nothing to parse.
+  if (res.status === 204) return undefined as T
   const json = await res.json()
   if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
   return json as T

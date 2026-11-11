@@ -8,7 +8,7 @@ export function useQuickReport(tenantId: string) {
   return useQuery({
     queryKey: ['reports', 'quick', tenantId],
     queryFn: () =>
-      apiGet<QuickReport>(`/api/v1/reports/quick?tenant_id=${tenantId}`, user?.access_token),
+      apiGet<QuickReport>(`/api/v1/tenants/${tenantId}/reports/quick`, user?.access_token),
     enabled: !!user && !!tenantId,
   })
 }

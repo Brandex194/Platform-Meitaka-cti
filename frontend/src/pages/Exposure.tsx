@@ -7,15 +7,11 @@ import type { ExposureMatch } from '@/api/types'
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === 'active'
-      ? 'bg-orange-100 text-orange-800'
+      ? 'badge-high'
       : status === 'resolved'
-        ? 'bg-green-100 text-green-800'
-        : 'bg-gray-100 text-gray-600'
-  return (
-    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${cls}`}>
-      {status}
-    </span>
-  )
+        ? 'badge-low'
+        : 'badge-neutral'
+  return <span className={`badge ${cls}`}>{status}</span>
 }
 
 export function Exposure({ tenantId }: { tenantId: string }) {
@@ -43,7 +39,7 @@ export function Exposure({ tenantId }: { tenantId: string }) {
             header: 'Actions',
             cell: (info: { row: { original: ExposureMatch } }) => (
               <button
-                className="rounded bg-green-600 px-2 py-1 text-xs text-white"
+                className="btn btn-ok"
                 onClick={() =>
                   patchMutation.mutate({ id: info.row.original.id, status: 'resolved' })
                 }
@@ -58,7 +54,7 @@ export function Exposure({ tenantId }: { tenantId: string }) {
   ]
 
   return (
-    <div className="p-6">
+    <div>
       <DataTable<ExposureMatch> data={data?.items ?? []} columns={columns} isLoading={isLoading} />
     </div>
   )
