@@ -3,12 +3,15 @@ import logging
 
 from sqlalchemy import select
 
+from app.collectors.abuseipdb import fetch_abuseipdb
 from app.collectors.attack import fetch_attack
+from app.collectors.epss import fetch_epss
 from app.collectors.hibp import fetch_hibp_for_tenant
 from app.collectors.ioc import fetch_ioc
 from app.collectors.kev import fetch_kev
 from app.collectors.nvd import fetch_nvd
 from app.collectors.phishing import fetch_phishing
+from app.collectors.ransomware import fetch_ransomware_live
 from app.core.config import get_settings
 from app.correlation.engine import CorrelationEngine
 from app.db.models import Tenant
@@ -107,6 +110,43 @@ def collect_phishing() -> int:
 def collect_ioc() -> int:
     # fetch_ioc already gates on ioc_collector_enabled
     return fetch_ioc()
+
+
+@celery_app.task(name="sentinel.tasks.collect_epss")
+def collect_epss() -> int:
+    if not get_settings().epss_collector_enabled:
+        return 0
+    gen = bypass_session()
+    db = next(gen)
+    try:
+        count = fetch_epss(db)
+        db.flush()
+    except Exception:
+        db.rollback()
+        try:
+            next(gen)
+        except Exception:
+            pass
+        raise
+    try:
+        next(gen)
+    except StopIteration:
+        pass
+    return count
+
+
+@celery_app.task(name="sentinel.tasks.collect_ransomware_live")
+def collect_ransomware_live() -> int:
+    if not get_settings().ransomware_live_enabled:
+        return 0
+    return fetch_ransomware_live(r=get_redis())
+
+
+@celery_app.task(name="sentinel.tasks.collect_abuseipdb")
+def collect_abuseipdb() -> int:
+    if not get_settings().abuseipdb_collector_enabled:
+        return 0
+    return fetch_abuseipdb(r=get_redis())
 
 
 @celery_app.task(name="sentinel.tasks.collect_leak")

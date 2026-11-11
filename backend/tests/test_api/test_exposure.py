@@ -1,7 +1,7 @@
 def test_list_exposure_matches_returns_200(analyst_client, tenant):
     r = analyst_client.get(f"/api/v1/tenants/{tenant.id}/exposure-matches")
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    assert {"items", "total", "page", "size"} <= r.json().keys()
 
 
 def test_patch_exposure_with_analyst_returns_200(analyst_client, tenant, exposure_match):

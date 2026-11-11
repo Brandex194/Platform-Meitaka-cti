@@ -8,7 +8,7 @@ from app.core.middleware import setup_middleware
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Sentinel AI", version="1.0.0")
+    app = FastAPI(title="Meitaka CTI", version="1.0.0")
     setup_middleware(app)
     app.include_router(api_router, prefix="/api/v1")
     app.add_exception_handler(HTTPException, http_exception_handler)

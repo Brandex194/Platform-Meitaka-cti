@@ -6,12 +6,32 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CorrelationEvent, KevCatalog, Score, ScoreRule, Vulnerability
-from app.risk.formulas import DEFAULT_WEIGHTS, level_from_score, s_base
+from app.db.models import (
+    Asset,
+    CorrelationEvent,
+    KevCatalog,
+    Score,
+    ScoreRule,
+    Vulnerability,
+)
+from app.risk.formulas import (
+    DEFAULT_THRESHOLDS,
+    KNOWN_FORMULAS,
+    WEIGHTS_BY_FORMULA,
+    aggregate,
+    alpha,
+    apply_kev_floor,
+    exposure_factor,
+    f_confidence,
+    f_recency,
+    f_severity,
+    impact_factor,
+    level_from_score,
+    merged_parameters,
+    s_base,
+)
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_THRESHOLDS = {"high": 0.7, "medium": 0.4}
 
 
 def check_and_notify(tenant_id, asset_id, old_score: Optional[float], new_score: float, db) -> None:
@@ -47,25 +67,132 @@ def run_for_tenant(tenant_id, db: Optional[Session] = None, r=None) -> dict:
     return result
 
 
-def _compute(tenant_id, db: Session) -> dict:
-    # 1. Active ScoreRule: prefer tenant-specific (highest version), fall back to global
-    rule = (
-        db.query(ScoreRule)
-        .filter(ScoreRule.tenant_id == tenant_id)
-        .order_by(ScoreRule.version.desc())
-        .first()
-    )
-    if not rule:
-        rule = (
-            db.query(ScoreRule)
-            .filter(ScoreRule.tenant_id.is_(None))
-            .order_by(ScoreRule.version.desc())
-            .first()
-        )
-    weights = rule.weights if rule else DEFAULT_WEIGHTS
-    thresholds = rule.thresholds if rule else _DEFAULT_THRESHOLDS
+def _is_current(rule: ScoreRule) -> bool:
+    """Rules written for the pre-09/11/2026 formula have no `parameters.formula`: never apply them
+    to the §5 formula, their weights mean something else."""
+    return (rule.parameters or {}).get("formula") in KNOWN_FORMULAS
 
-    # 2. Active CorrelationEvents
+
+def _active_rule(tenant_id, db: Session) -> Optional[ScoreRule]:
+    """Highest-version §5 rule of the tenant, else the highest-version global one, else None (defaults)."""
+    for scope in (ScoreRule.tenant_id == tenant_id, ScoreRule.tenant_id.is_(None)):
+        for rule in db.query(ScoreRule).filter(scope).order_by(ScoreRule.version.desc()).all():
+            if _is_current(rule):
+                return rule
+    return None
+
+
+def asset_breakdown(asset, asset_events, vuln_map, kev_cve_ids, params, weights, now) -> dict:
+    """Everything that makes up one asset's score, finding by finding.
+
+    This is the single place the score is computed: `_compute` stores `total`, and the explanation
+    endpoint returns the whole structure, so what is explained is exactly what is stored.
+    """
+    exposure_value = asset.exposure if asset else None
+    impact_value = asset.impact if asset else None
+    e_factor = exposure_factor(exposure_value, params)
+    i_factor = impact_factor(impact_value, params)
+    context = e_factor * i_factor
+
+    findings = []
+    for e in asset_events:
+        vuln = vuln_map.get(e.vulnerability_id) if e.vulnerability_id else None
+        in_kev = bool(vuln and vuln.cve_id in kev_cve_ids)
+        sev = f_severity(vuln.cvss_score if vuln else None, params)
+        conf = f_confidence(e.s_context, in_kev, params)
+        rec = f_recency(e.created_at, params, now)
+        base = s_base(sev, conf, rec, vuln.epss_score if vuln else None, weights, params["formula"])
+        in_context = base * context
+        floored = apply_kev_floor(in_context, in_kev, params)
+        a = alpha(e.rule_name, params)
+        findings.append({
+            "event_id": e.id,
+            "rule_name": e.rule_name,
+            "cve_id": vuln.cve_id if vuln else None,
+            "cvss": vuln.cvss_score if vuln else None,
+            "epss": vuln.epss_score if vuln else None,
+            "in_kev": in_kev,
+            "f_severity": sev,
+            "f_confidence": conf,
+            "f_recency": rec,
+            "s_base": base,
+            "s_context": in_context,
+            "kev_floor_applied": floored > in_context,
+            "alpha": a,
+            "contribution": floored * a,
+        })
+
+    findings.sort(key=lambda f: f["contribution"], reverse=True)
+    decay = params.get("aggregation_decay")
+    for rank, f in enumerate(findings):
+        f["rank"] = rank
+        f["weight"] = decay**rank if decay else 1.0
+        f["counted"] = f["contribution"] * f["weight"]
+    total = aggregate([f["contribution"] for f in findings], params)
+    return {
+        "exposure": exposure_value,
+        "exposure_factor": e_factor,
+        "impact": impact_value,
+        "impact_factor": i_factor,
+        "context_factor": context,
+        "findings": findings,
+        "aggregation": "decay" if decay else "sum",
+        "decay": decay,
+        "raw_sum": sum(f["counted"] for f in findings),
+        "total": total,
+    }
+
+
+def resolve_rule(tenant_id, db: Session):
+    """(rule or None, params, weights, thresholds) the engine would use for this tenant now."""
+    rule = _active_rule(tenant_id, db)
+    params = merged_parameters(rule.parameters if rule else None)
+    weights = (rule.weights if rule else None) or WEIGHTS_BY_FORMULA[params["formula"]]
+    thresholds = (rule.thresholds if rule else None) or DEFAULT_THRESHOLDS
+    return rule, params, weights, thresholds
+
+
+def explain_asset(tenant_id, asset_id, db: Session) -> dict | None:
+    """Read-only breakdown of one asset's score with the rule the engine would use right now."""
+    asset = db.execute(
+        select(Asset).where(Asset.id == asset_id, Asset.tenant_id == tenant_id)
+    ).scalar_one_or_none()
+    if asset is None:
+        return None
+    rule, params, weights, thresholds = resolve_rule(tenant_id, db)
+    events = db.execute(
+        select(CorrelationEvent).where(
+            CorrelationEvent.tenant_id == tenant_id,
+            CorrelationEvent.asset_id == asset_id,
+            CorrelationEvent.is_active == True,  # noqa: E712
+        )
+    ).scalars().all()
+    kev_cve_ids = {row.cve_id for row in db.execute(select(KevCatalog)).scalars().all()}
+    vuln_ids = {e.vulnerability_id for e in events if e.vulnerability_id}
+    vuln_map = {}
+    if vuln_ids:
+        vuln_map = {
+            v.id: v
+            for v in db.execute(select(Vulnerability).where(Vulnerability.id.in_(vuln_ids))).scalars().all()
+        }
+    b = asset_breakdown(asset, events, vuln_map, kev_cve_ids, params, weights, datetime.now(timezone.utc))
+    b.update({
+        "asset_id": asset.id,
+        "hostname": asset.hostname,
+        "ip": asset.ip,
+        "formula": params["formula"],
+        "rule_id": rule.id if rule else None,
+        "rule_version": rule.version if rule else None,
+        "kev_floor": params.get("kev_floor"),
+        "thresholds": {**DEFAULT_THRESHOLDS, **(thresholds or {})},
+        "level": level_from_score(b["total"], thresholds),
+    })
+    return b
+
+
+def _compute(tenant_id, db: Session) -> dict:
+    rule, params, weights, thresholds = resolve_rule(tenant_id, db)
+
     events = db.execute(
         select(CorrelationEvent).where(
             CorrelationEvent.tenant_id == tenant_id,
@@ -73,50 +200,41 @@ def _compute(tenant_id, db: Session) -> dict:
         )
     ).scalars().all()
 
-    # 3. KEV vuln IDs: set of UUID strings for vulns whose cve_id is in KEV
     kev_cve_ids = {row.cve_id for row in db.execute(select(KevCatalog)).scalars().all()}
-    kev_vuln_ids: set = set()
-    if kev_cve_ids:
-        kev_vuln_ids = {
-            str(v)
-            for v in db.execute(
-                select(Vulnerability.id).where(Vulnerability.cve_id.in_(kev_cve_ids))
-            ).scalars().all()
-        }
 
-    # 4. Previous scores (for change detection and fully-resolved asset handling)
     prev_scores: dict = {}
     for s in db.execute(select(Score).where(Score.tenant_id == tenant_id, Score.score_type == "asset")).scalars().all():
-        # Keep only the most recent per asset
         if s.asset_id not in prev_scores or s.computed_at > prev_scores[s.asset_id].computed_at:
             prev_scores[s.asset_id] = s
 
-    # 5. Bulk-load all referenced vulnerabilities (Fix 2: per-event lookup via map)
     vuln_ids = {e.vulnerability_id for e in events if e.vulnerability_id}
     vuln_map: dict = {}
     if vuln_ids:
         for v in db.execute(select(Vulnerability).where(Vulnerability.id.in_(vuln_ids))).scalars().all():
             vuln_map[v.id] = v
 
-    # 6. Group active events by asset, score each event against its own vulnerability
+    asset_ids = {e.asset_id for e in events if e.asset_id}
+    asset_map: dict = {}
+    if asset_ids:
+        for a in db.execute(
+            select(Asset).where(Asset.id.in_(asset_ids), Asset.tenant_id == tenant_id)
+        ).scalars().all():
+            asset_map[a.id] = a
+
     by_asset: dict = {}
     for e in events:
         by_asset.setdefault(e.asset_id, []).append(e)
 
     count = 0
     now = datetime.now(timezone.utc)
+    rule_id = rule.id if rule else None
+    rule_version = rule.version if rule else None
 
     for asset_id, asset_events in by_asset.items():
-        # Fix 2: each event uses its own vulnerability's EPSS/CVSS
-        total = 0.0
-        for e in asset_events:
-            vuln = vuln_map.get(e.vulnerability_id) if e.vulnerability_id else None
-            vuln_epss = vuln.epss_score if vuln else None
-            vuln_score = vuln.cvss_score if vuln else None
-            total += s_base(e, kev_vuln_ids, vuln_epss, vuln_score, weights)
+        asset = asset_map.get(asset_id)
+        total = asset_breakdown(asset, asset_events, vuln_map, kev_cve_ids, params, weights, now)["total"]
 
         old_val = prev_scores[asset_id].value if asset_id in prev_scores else None
-
         db.add(Score(
             tenant_id=tenant_id,
             asset_id=asset_id,
@@ -124,24 +242,27 @@ def _compute(tenant_id, db: Session) -> dict:
             value=total,
             level=level_from_score(total, thresholds),
             computed_at=now,
+            score_rule_id=rule_id,
+            score_rule_version=rule_version,
         ))
         count += 1
         check_and_notify(tenant_id, asset_id, old_val, total, db)
 
-    # Fix 1: assets with prior scores but no active events now → insert Score(0.0)
-    # Fix 2 (round 2): skip if already at 0.0 to avoid unbounded row growth
+    # Assets with prior scores but no active events now → Score(0.0), once.
     active_asset_ids = set(by_asset.keys())
     for asset_id, prev in prev_scores.items():
         if asset_id not in active_asset_ids:
             if prev.value == 0.0:
-                continue  # already resolved to 0.0, no re-insert
+                continue
             db.add(Score(
                 tenant_id=tenant_id,
                 asset_id=asset_id,
                 score_type="asset",
                 value=0.0,
-                level="low",
+                level=level_from_score(0.0, thresholds),
                 computed_at=now,
+                score_rule_id=rule_id,
+                score_rule_version=rule_version,
             ))
             count += 1
             check_and_notify(tenant_id, asset_id, prev.value, 0.0, db)

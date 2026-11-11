@@ -22,9 +22,10 @@ services:
       - "6379:6379"
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25
+    image: quay.io/keycloak/keycloak:25.0.6
     command: start-dev --import-realm
     environment:
+      # Dev only: admin/admin and the users in keycloak/realm-dev.json must never reach a real environment.
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
@@ -49,6 +50,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://sentinel_app:sentinel_app@postgres:5432/sentinel
       REDIS_URL: redis://redis:6379/0
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      # Dev only: encrypts the API keys stored from the Management page. Put your own in backend/.env.
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-Qg1Txw2lVv8alps5sJTrVBt7pE0Tqnad6n3rZ0iY9VY=}
     ports:
       - "8000:8000"
     depends_on:
@@ -66,6 +70,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://sentinel_app:sentinel_app@postgres:5432/sentinel
       REDIS_URL: redis://redis:6379/0
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
     depends_on:
       migrate:
         condition: service_completed_successfully

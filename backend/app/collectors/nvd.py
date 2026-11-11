@@ -51,11 +51,8 @@ def fetch_nvd(r: "_redis.Redis | None" = None) -> int:
             "startIndex": start_index,
             "resultsPerPage": PAGE_SIZE,
         }
-        try:
-            resp = httpx.get(NVD_BASE, params=params, headers=headers, timeout=30)
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.warning("NVD HTTP error: %s", exc)
+        resp = _get_with_retry(params, headers)
+        if resp is None:
             return total_published
 
         data = resp.json()
@@ -71,12 +68,37 @@ def fetch_nvd(r: "_redis.Redis | None" = None) -> int:
         if not vulnerabilities or start_index >= total_results:
             break
 
-        time.sleep(0.1 if settings.nvd_api_key else 0.6)
+        # NVD limits: 5 req/30s without key, 50 req/30s with key; NVD recommends 6s between requests
+        time.sleep(0.6 if settings.nvd_api_key else 6)
 
     r.set(LAST_RUN_KEY, end_dt.isoformat())
     return total_published
 
 
+RETRY_ATTEMPTS = 3
+RETRY_WAIT_S = 30  # one full NVD rate-limit window
+
+
+def _get_with_retry(params: dict, headers: dict) -> "httpx.Response | None":
+    """GET one NVD page; retry timeouts, 429 and 5xx. Returns None when all attempts fail."""
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        try:
+            resp = httpx.get(NVD_BASE, params=params, headers=headers, timeout=60)
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPStatusError as exc:
+            code = exc.response.status_code
+            if code != 429 and code < 500:
+                logger.warning("NVD HTTP error: %s", exc)
+                return None
+            logger.warning("NVD HTTP error (attempt %d/%d): %s", attempt, RETRY_ATTEMPTS, exc)
+        except httpx.TransportError as exc:
+            logger.warning("NVD HTTP error (attempt %d/%d): %s", attempt, RETRY_ATTEMPTS, exc)
+        if attempt < RETRY_ATTEMPTS:
+            time.sleep(RETRY_WAIT_S)
+    return None
+
+
 def _fmt_nvd_date(dt: datetime) -> str:
-    # NVD API date format: 2024-01-01T00:00:00.000 UTC+00:00
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.000 UTC+00:00")
+    # NVD API wants ISO-8601 with offset, e.g. 2024-01-01T00:00:00.000+00:00 (a space would be URL-encoded as "+" → 404)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000+00:00")

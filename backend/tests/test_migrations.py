@@ -29,7 +29,7 @@ def test_leaks_has_tenant_id():
     assert col is not None
 
 
-def test_all_21_tables_present():
+def test_all_27_tables_present():
     from app.db.base import Base
     from app.db import models  # noqa: F401
 
@@ -38,7 +38,7 @@ def test_all_21_tables_present():
         "threat_actors", "tenants", "assets", "identities", "indicators",
         "leaks", "phishing_domains", "cases", "score_rules", "campaigns",
         "audit_logs", "feedback_events", "software", "observations",
-        "scores", "correlation_events", "exposure_matches",
+        "scores", "correlation_events", "exposure_matches", "case_notes", "case_events", "api_keys", "integration_keys", "indicator_enrichments", "campaign_indicators",
     }
     assert expected == set(Base.metadata.tables.keys())
 

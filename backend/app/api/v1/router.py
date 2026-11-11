@@ -1,12 +1,52 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import assets, dashboard, exposure, health, score_rules, scores
+from app.api.v1.routes import (
+    assets,
+    attack,
+    cases,
+    catalog,
+    connectors,
+    correlation_events,
+    darkweb,
+    dashboard,
+    exposure,
+    graph,
+    health,
+    identities,
+    integrations,
+    intel,
+    management,
+    redteam,
+    reports,
+    scanner,
+    score_rules,
+    scores,
+    stix,
+)
 
 api_router = APIRouter()
 
-api_router.include_router(health.router)
-api_router.include_router(assets.router)
-api_router.include_router(scores.router)
-api_router.include_router(exposure.router)
-api_router.include_router(score_rules.router)
-api_router.include_router(dashboard.router)
+for module in (
+    health,
+    assets,
+    scores,
+    exposure,
+    graph,
+    correlation_events,
+    cases,
+    darkweb,
+    identities,
+    catalog,
+    intel,
+    management,
+    integrations,
+    connectors,
+    dashboard,
+    reports,
+    score_rules,
+    stix,
+    attack,
+    scanner,
+    redteam,
+):
+    api_router.include_router(module.router)

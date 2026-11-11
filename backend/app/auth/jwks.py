@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -19,9 +19,15 @@ class TokenData(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_jwks_client() -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(jwks_url())
+
+
+def jwks_url() -> str:
+    """JWKS endpoint; prefers KEYCLOAK_INTERNAL_URL so containers can reach Keycloak
+    while the issuer check keeps using the public KEYCLOAK_URL."""
     s = get_settings()
-    url = f"{s.keycloak_url}/realms/{s.keycloak_realm}/protocol/openid-connect/certs"
-    return jwt.PyJWKClient(url)
+    base = (s.keycloak_internal_url or s.keycloak_url).rstrip("/")
+    return f"{base}/realms/{s.keycloak_realm}/protocol/openid-connect/certs"
 
 
 def _decode_jwt(raw: str) -> dict:
@@ -43,15 +49,45 @@ def _decode_jwt(raw: str) -> dict:
         ) from exc
 
 
+def _lookup_api_key(raw: str) -> dict | None:
+    """Look the key up in a bypass session: the tenant is not known until the key is found.
+    Tests replace this function."""
+    from app.auth.api_keys import authenticate_key
+    from app.db.session import bypass_session
+
+    gen = bypass_session()
+    db = next(gen)
+    try:
+        payload = authenticate_key(db, raw)
+    except Exception:
+        gen.close()
+        raise
+    try:
+        next(gen)  # commit last_used_at
+    except StopIteration:
+        pass
+    return payload
+
+
 def decode_token(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> dict:
-    if credentials is None:
-        raise HTTPException(
-            status_code=401,
-            detail=error_response("UNAUTHORIZED", "Missing or invalid token"),
-        )
-    return _decode_jwt(credentials.credentials)
+    if credentials is not None:
+        return _decode_jwt(credentials.credentials)
+    raw_key = request.headers.get("X-API-Key")
+    if raw_key:
+        payload = _lookup_api_key(raw_key)
+        if payload is None:
+            raise HTTPException(
+                status_code=401,
+                detail=error_response("UNAUTHORIZED", "Invalid, expired or revoked API key"),
+            )
+        return payload
+    raise HTTPException(
+        status_code=401,
+        detail=error_response("UNAUTHORIZED", "Missing or invalid token"),
+    )
 
 
 def verify_token(

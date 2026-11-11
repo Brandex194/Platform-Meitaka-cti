@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.jwks import decode_token
 from app.auth.roles import Role
 from app.core.errors import error_response
-from app.db.session import get_tenant_scoped_db
+from app.db.session import bypass_session, get_tenant_scoped_db
 
 
 def get_scoped_db(
@@ -38,3 +38,9 @@ def get_scoped_db(
             next(gen)
         except StopIteration:
             pass
+
+
+def get_admin_db() -> Generator[Session, None, None]:
+    """Session that sees every tenant (RLS bypass), committed on success. Only for routes that
+    already checked `super_admin`, such as tenant management."""
+    yield from bypass_session()

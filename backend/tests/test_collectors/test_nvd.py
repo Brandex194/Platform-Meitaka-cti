@@ -52,6 +52,29 @@ def test_nvd_http_error_returns_zero():
     import httpx as _httpx
     r = fakeredis.FakeRedis()
 
-    with patch("httpx.get", side_effect=_httpx.ConnectError("refused")):
-        from app.collectors.nvd import fetch_nvd
+    with patch("time.sleep"), patch("httpx.get", side_effect=_httpx.ConnectError("refused")) as get:
+        from app.collectors.nvd import RETRY_ATTEMPTS, fetch_nvd
         assert fetch_nvd(r=r) == 0
+    assert get.call_count == RETRY_ATTEMPTS
+
+
+def test_nvd_retries_timeout_then_succeeds():
+    """A read timeout on one page is retried instead of aborting the run."""
+    import httpx as _httpx
+    r = fakeredis.FakeRedis()
+
+    with patch("time.sleep"), patch(
+        "httpx.get", side_effect=[_httpx.ReadTimeout("slow"), _make_response(0, 3, 3)]
+    ):
+        from app.collectors.nvd import LAST_RUN_KEY, fetch_nvd
+        assert fetch_nvd(r=r) == 3
+    assert r.get(LAST_RUN_KEY) is not None
+
+
+def test_fmt_nvd_date_is_iso_with_offset():
+    from datetime import datetime, timedelta, timezone
+
+    from app.collectors.nvd import _fmt_nvd_date
+
+    dt = datetime(2026, 8, 11, 16, 28, 15, tzinfo=timezone(timedelta(hours=2)))
+    assert _fmt_nvd_date(dt) == "2026-08-11T14:28:15.000+00:00"

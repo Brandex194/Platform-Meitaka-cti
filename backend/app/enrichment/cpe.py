@@ -15,6 +15,13 @@ def _parse_ver(s: str | None):
         return None
 
 
+def _same_version(a: str, b: str) -> bool:
+    if a == b:
+        return True
+    va, vb = _parse_ver(a), _parse_ver(b)
+    return va is not None and vb is not None and va == vb
+
+
 def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool, float]:
     """Return (matched, confidence) for a software CPE against CVE configurations.
 
@@ -48,7 +55,15 @@ def match_cpe(software_cpe: str, vuln_configurations: list[dict]) -> tuple[bool,
         ver_end_incl = config.get("versionEndIncluding")
 
         if not any([ver_start, ver_start_excl, ver_end_excl, ver_end_incl]):
-            return (True, 0.7) if sw_version == "*" else (True, 0.5)
+            crit_version = crit_parts[5]
+            if crit_version in ("*", "-", ""):
+                return (True, 0.7) if sw_version == "*" else (True, 0.5)
+            # NVD pins a single affected version in the criteria itself (e.g. http_server:2.4.49).
+            if sw_version == "*":
+                return True, 0.7
+            if _same_version(sw_version, crit_version):
+                return True, 0.9
+            continue
 
         if sw_version == "*":
             return True, 0.7

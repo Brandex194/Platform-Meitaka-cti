@@ -1,41 +1,29 @@
 import uuid
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import and_, func, select
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_scoped_db
+from app.api.v1.pagination import PageParams, page_params, paginate
+from app.api.v1.queries import latest_asset_scores
+from app.api.v1.schemas import Page, ScoreOut
 from app.auth.roles import Role, require_roles
 from app.db.models import Score
-from app.risk.engine import run_for_tenant
+from app.core.errors import error_response
+from app.risk.engine import explain_asset, run_for_tenant
 
 router = APIRouter()
 
 
-@router.get("/tenants/{tenant_id}/scores")
+@router.get("/tenants/{tenant_id}/scores", response_model=Page[ScoreOut])
 def list_scores(
     tenant_id: uuid.UUID,
     db: Session = Depends(get_scoped_db),
+    params: PageParams = Depends(page_params),
 ):
-    # Only return the latest score per asset (not all historical rows)
-    latest_subq = (
-        db.query(Score.asset_id, func.max(Score.computed_at).label("max_at"))
-        .filter(Score.tenant_id == tenant_id, Score.score_type == "asset")
-        .group_by(Score.asset_id)
-        .subquery()
-    )
-    scores = (
-        db.query(Score)
-        .join(latest_subq, and_(
-            Score.asset_id == latest_subq.c.asset_id,
-            Score.computed_at == latest_subq.c.max_at,
-        ))
-        .all()
-    )
-    return [
-        {"id": str(s.id), "asset_id": str(s.asset_id), "value": s.value, "level": s.level}
-        for s in scores
-    ]
+    """Latest score per asset (not the full history), highest first."""
+    stmt = latest_asset_scores(tenant_id).order_by(Score.value.desc(), Score.id)
+    return paginate(db, stmt, params, ScoreOut)
 
 
 @router.post("/tenants/{tenant_id}/scores/compute")
@@ -45,3 +33,16 @@ def compute_scores(
     _: dict = Depends(require_roles(Role.super_admin, Role.tenant_admin, Role.analyst)),
 ):
     return run_for_tenant(tenant_id, db=db)
+
+
+@router.get("/tenants/{tenant_id}/assets/{asset_id}/score-explanation")
+def score_explanation(
+    tenant_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    db: Session = Depends(get_scoped_db),
+):
+    """Why an asset has its score: context factors and every finding with its contribution."""
+    out = explain_asset(tenant_id, asset_id, db)
+    if out is None:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Asset not found"))
+    return out

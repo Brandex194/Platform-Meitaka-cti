@@ -60,18 +60,71 @@ def normalize_batch(db=None, r=None) -> tuple[int, str | None, list]:
 
 
 
+# NVD lists several CVSS versions; v3.1 first because the risk engine was calibrated on it.
+_CVSS_KEYS = ("cvssMetricV31", "cvssMetricV40", "cvssMetricV30", "cvssMetricV2")
+_RANGE_KEYS = (
+    "versionStartIncluding",
+    "versionStartExcluding",
+    "versionEndIncluding",
+    "versionEndExcluding",
+)
+
+
+def _extract_cvss(metrics: dict) -> tuple[float | None, str | None]:
+    """Return (base score, vector) from the best available CVSS version.
+
+    Within a version the NVD "Primary" entry wins over vendor ("Secondary") scores.
+    """
+    for key in _CVSS_KEYS:
+        entries = metrics.get(key) or []
+        if not entries:
+            continue
+        entry = next((e for e in entries if e.get("type") == "Primary"), entries[0])
+        data = entry.get("cvssData", {})
+        if data.get("baseScore") is not None:
+            return data["baseScore"], (data.get("vectorString") or None)
+    return None, None
+
+
+def _extract_cpe_nodes(configurations: list) -> list[dict]:
+    """Flatten NVD 2.0 configurations into the cpeMatch entries marked vulnerable.
+
+    Shape kept: {"criteria", version range keys...}, which is what enrichment.cpe.match_cpe reads.
+    Entries with vulnerable=false are platforms ("running on/with") and must not raise an exposure.
+    Shortcut: AND-configurations are flattened, so "app X only when on OS Y" matches on X alone.
+    """
+    nodes: list[dict] = []
+    seen: set[tuple] = set()
+    for config in configurations or []:
+        for node in config.get("nodes", []) or []:
+            if node.get("negate"):
+                continue
+            for match in node.get("cpeMatch", []) or []:
+                if not match.get("vulnerable") or not match.get("criteria"):
+                    continue
+                entry = {"criteria": match["criteria"]}
+                entry.update({k: match[k] for k in _RANGE_KEYS if match.get(k)})
+                key = tuple(sorted(entry.items()))
+                if key not in seen:
+                    seen.add(key)
+                    nodes.append(entry)
+    return nodes
+
+
 def _upsert_vulnerability(data: dict, db) -> str:
     cve_id = data["id"]
     descriptions = data.get("descriptions", [])
-    description = (descriptions[0].get("value", "") if descriptions else "")[:2000]
-    metrics_v31 = data.get("metrics", {}).get("cvssMetricV31", [])
-    cvss_score = metrics_v31[0].get("cvssData", {}).get("baseScore") if metrics_v31 else None
+    english = next((d for d in descriptions if d.get("lang") == "en"), descriptions[0] if descriptions else {})
+    description = english.get("value", "")[:2000]
+    cvss_score, cvss_vector = _extract_cvss(data.get("metrics", {}) or {})
     db.merge(
         Vulnerability(
             id=uuid.uuid5(NAMESPACE_URL, cve_id),
             cve_id=cve_id,
             description=description,
             cvss_score=cvss_score,
+            cvss_vector=cvss_vector[:100] if cvss_vector else None,
+            cpe_nodes=_extract_cpe_nodes(data.get("configurations", [])),
         )
     )
     return cve_id

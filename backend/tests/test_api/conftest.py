@@ -12,13 +12,13 @@ os.environ.setdefault("KEYCLOAK_URL", "http://localhost:8080")
 os.environ.setdefault("KEYCLOAK_REALM", "sentinel")
 os.environ.setdefault("KEYCLOAK_CLIENT_ID", "sentinel-api")
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import pytest
+from fastapi.testclient import TestClient
 
-from app.api.v1.deps import get_scoped_db  # noqa: E402
-from app.auth.jwks import decode_token  # noqa: E402
-from app.db.session import get_db  # noqa: E402
-from app.main import create_app  # noqa: E402
+from app.api.v1.deps import get_scoped_db
+from app.auth.jwks import decode_token
+from app.db.session import get_db
+from app.main import create_app
 
 
 def _client(db_session, roles: list, tenant_id: str) -> TestClient:
@@ -42,6 +42,11 @@ def analyst_client(db_session, tenant):
 @pytest.fixture
 def viewer_client(db_session, tenant):
     return _client(db_session, ["viewer"], str(tenant.id))
+
+
+@pytest.fixture
+def tenant_admin_client(db_session, tenant):
+    return _client(db_session, ["tenant_admin"], str(tenant.id))
 
 
 @pytest.fixture

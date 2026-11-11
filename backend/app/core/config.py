@@ -10,8 +10,15 @@ class Settings(BaseSettings):
     migration_database_url: str = ""
     redis_url: str
     keycloak_url: str
+    # URL used by the backend to fetch JWKS when it differs from the public issuer URL
+    # (e.g. inside docker-compose: issuer http://localhost:8080, JWKS via http://keycloak:8080).
+    keycloak_internal_url: str = ""
     keycloak_realm: str
     keycloak_client_id: str
+
+    # Fernet key that encrypts the API keys users store in the platform (see app/core/vault.py).
+    # Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    secrets_encryption_key: str = ""
 
     nvd_api_key: str = ""
     abuseipdb_key: str = ""
@@ -30,6 +37,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     ioc_collector_enabled: bool = False
     leak_collector_enabled: bool = False
+    ransomware_live_enabled: bool = False
+    openphish_enabled: bool = False
+    abuseipdb_collector_enabled: bool = False
+    greynoise_enrichment_enabled: bool = False
+    epss_collector_enabled: bool = True  # public API, no key required
 
 
 @lru_cache()

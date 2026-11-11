@@ -100,3 +100,29 @@ def test_invalid_version_returns_not_affected():
     configs = [{"criteria": "cpe:2.3:a:v:p:*:*:*:*:*:*:*:*", "versionEndExcluding": "2.0.0"}]
     result = match_cpe("cpe:2.3:a:v:p:not-a-version:*:*:*:*:*:*:*", configs)
     assert result == (False, 0.0)
+
+
+# --- Version pinned in the criteria (NVD style, no range keys) -----------------
+
+_PINNED = [{"criteria": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"}]
+
+
+def test_pinned_version_matches_same_version():
+    assert match_cpe("cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*", _PINNED) == (True, 0.9)
+
+
+def test_pinned_version_does_not_match_other_version():
+    """Before 09/11/2026 any version of the product matched at 0.5: a false exposure."""
+    assert match_cpe("cpe:2.3:a:apache:http_server:2.4.50:*:*:*:*:*:*:*", _PINNED) == (False, 0.0)
+
+
+def test_pinned_version_with_unknown_sw_version_is_possible_match():
+    assert match_cpe("cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*", _PINNED) == (True, 0.7)
+
+
+def test_pinned_versions_any_of_several_entries():
+    configs = [
+        {"criteria": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"},
+        {"criteria": "cpe:2.3:a:apache:http_server:2.4.50:*:*:*:*:*:*:*"},
+    ]
+    assert match_cpe("cpe:2.3:a:apache:http_server:2.4.50:*:*:*:*:*:*:*", configs) == (True, 0.9)
