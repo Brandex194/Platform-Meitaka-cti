@@ -1,6 +1,6 @@
 # Documenti storici
 
-Documenti scritti per il vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma per mediaminer`, non modificata). Ognuno ha in testa una nota che dice cosa vale ancora. Lo stato attuale è in [`../STATO-PROGETTO.md`](../STATO-PROGETTO.md).
+Documenti scritti per il vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma (vecchio prototipo)`, non modificata). Ognuno ha in testa una nota che dice cosa vale ancora. Lo stato attuale è in [`../STATO-PROGETTO.md`](../STATO-PROGETTO.md).
 
 | File | Cos'era | Vale ancora? |
 |---|---|---|

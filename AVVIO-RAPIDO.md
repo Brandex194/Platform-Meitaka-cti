@@ -16,7 +16,7 @@ Aggiornata al 10 novembre 2026 (passo 12).
 2. Apri PowerShell e lancia:
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+cd "C:\percorso-progetto\piattaforma cti"
 powershell -ExecutionPolicy Bypass -File .\avvia-sentinel.ps1
 ```
 
@@ -25,7 +25,7 @@ Lo script crea i file `.env` se mancano, avvia database, Redis, Keycloak, API e 
 **Dopo aver ricevuto nuovi file (come il passo 12)** serve ricostruire l'immagine, altrimenti l'API usa il codice vecchio:
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti\backend"
+cd "C:\percorso-progetto\piattaforma cti\backend"
 docker compose up -d --build
 ```
 
@@ -47,7 +47,7 @@ Apri http://localhost:5173. Il login è quello di Keycloak, password per tutti: 
 La piattaforma parte vuota. Per vederla piena (8 asset, vulnerabilità, esposizioni, score, 5 casi, attori e campagne, leak e findings Dark Web) carica i dati finti:
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+cd "C:\percorso-progetto\piattaforma cti"
 powershell -ExecutionPolicy Bypass -File .\carica-demo.ps1
 ```
 
@@ -79,7 +79,7 @@ docker compose exec worker celery -A app.worker.celery_app call sentinel.tasks.c
 ## Spegnere
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+cd "C:\percorso-progetto\piattaforma cti"
 .\ferma-sentinel.ps1            # ferma e conserva i dati
 .\ferma-sentinel.ps1 -Cancella  # ferma e CANCELLA tutti i dati (ripartenza da zero)
 ```

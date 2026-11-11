@@ -1,10 +1,10 @@
-> **Documento storico.** Si riferisce al vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma per mediaminer`), sostituito dal rebuild iniziato il 23/10/2026. I problemi elencati qui (realm demo nel chart Helm, dashboard, CI) non si applicano al rebuild, che non ha né chart Helm né realm. Conservato così com'era per riferimento; lo stato attuale è in `docs/STATO-PROGETTO.md`.
+> **Documento storico.** Si riferisce al vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma (vecchio prototipo)`), sostituito dal rebuild iniziato il 23/10/2026. I problemi elencati qui (realm demo nel chart Helm, dashboard, CI) non si applicano al rebuild, che non ha né chart Helm né realm. Conservato così com'era per riferimento; lo stato attuale è in `docs/STATO-PROGETTO.md`.
 
 ---
 
 # Revisione Sentinel AI — 9 ottobre 2026
 
-Cartella analizzata: `File piattaforma per mediaminer` sul tuo PC (copia letta il 09/10/2026). Confronto con l'audit del 22/09/2026 (`knowledge/claude/audit-2026-09-22-tutto-il-progetto.md`).
+Cartella analizzata: `File piattaforma (vecchio prototipo)` sul tuo PC (copia letta il 09/10/2026). Confronto con l'audit del 22/09/2026 (`knowledge/claude/audit-2026-09-22-tutto-il-progetto.md`).
 
 ## Comandi di qualità: eseguiti davvero
 
@@ -41,7 +41,7 @@ Nessuno di questi tre ha un test. La regola §9 (test sulla logica di business) 
 
 In pratica `setup-repo-v2.ps1` dell'audit del 22/09 **non è mai stato eseguito**: sono ancora lì `Claude outputs/`, `github/` (copia vecchia del repo più lo zip da 1,4 MB), `demo/SENTINEL_AI_v9.html`, e sia `iac/` sia `infra/`.
 
-C'è anche un'incoerenza di contesto: §11 dice "il progetto prosegue come portfolio personale, non per un cliente reale", mentre le istruzioni del progetto lo descrivono come piattaforma B2B per mediaminer. Non cambia il codice, ma decide come presentarlo: da chiarire.
+C'è anche un'incoerenza di contesto: §11 dice "il progetto prosegue come portfolio personale, non per un cliente reale", mentre le istruzioni del progetto lo descrivono come piattaforma B2B per il recruiter target. Non cambia il codice, ma decide come presentarlo: da chiarire.
 
 ### 4. Exposure Intelligence: la feature prioritaria non c'è ancora (gap di prodotto, alta)
 Rispetto alla priorità n. 2:

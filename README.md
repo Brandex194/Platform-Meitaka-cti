@@ -6,7 +6,7 @@ Piattaforma di Cyber Threat Intelligence multi-tenant: ingest di feed pubblici (
 
 Progetto personale di portfolio di Luca Brandalese, costruito con gli standard di un prodotto B2B/MSSP (isolamento tenant con RLS, RBAC, audit log).
 
-Questa cartella contiene il **rebuild** iniziato il 23/10/2026, riscritto da zero dopo il reverse engineering del vecchio codice (che resta in `Desktop\File piattaforma per mediaminer`). Lo stato aggiornato, con cosa funziona e cosa no, è in [`docs/STATO-PROGETTO.md`](docs/STATO-PROGETTO.md).
+Questa cartella contiene il **rebuild** iniziato il 23/10/2026, riscritto da zero dopo il reverse engineering del vecchio codice (che resta in `Desktop\File piattaforma (vecchio prototipo)`). Lo stato aggiornato, con cosa funziona e cosa no, è in [`docs/STATO-PROGETTO.md`](docs/STATO-PROGETTO.md).
 
 ## Struttura
 

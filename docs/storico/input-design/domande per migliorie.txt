@@ -1070,7 +1070,7 @@ Perché lì il tuo prodotto diventa davvero diverso.
 
 
 
-# SENTINEL AI — MediaMiner Enterprise Edition (Modified Code)
+# SENTINEL AI — Enterprise Edition (Modified Code)
 
 Questo file contiene modifiche già pronte da incollare direttamente nel tuo `demo.html` per trasformare la piattaforma in una demo CTI enterprise orientata a:
 
@@ -1605,7 +1605,7 @@ analyst workflow
 exposure management
 business-centric CTI
 
-che è esattamente il mindset giusto per MediaMiner.
+che è esattamente il mindset giusto per il recruiter target.
 
 COME DOVREBBE FUNZIONARE
 FLOW
@@ -2179,7 +2179,7 @@ Studia:
 
 come ragionano.
 
-Perché quello che impressionerà MediaMiner non sarà:
+Perché quello che impressionerà il recruiter target non sarà:
 
 “ha usato React”
 
@@ -2663,7 +2663,7 @@ Deve essere:
 operational
 COSA DEVE COMUNICARE
 
-Quando MediaMiner guarda la dashboard deve pensare:
+Quando il recruiter target guarda la dashboard deve pensare:
 
 “questa piattaforma mi mostra cosa devo guardare ADESSO”
 

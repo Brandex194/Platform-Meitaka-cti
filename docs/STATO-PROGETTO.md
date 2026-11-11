@@ -1,6 +1,6 @@
 # Sentinel AI — Stato del progetto al 9 novembre 2026
 
-Verifica fatta leggendo e testando il codice in `C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti` (il rebuild iniziato il 23/10/2026). Il codice non è stato modificato.
+Verifica fatta leggendo e testando il codice in `C:\percorso-progetto\piattaforma cti` (il rebuild iniziato il 23/10/2026). Il codice non è stato modificato.
 
 ## In sintesi
 
@@ -21,7 +21,7 @@ Tre cose da decidere o sistemare prima di andare avanti (la terza è stata siste
 | Spec | `docs/superpowers/specs/2026-10-23-sentinel-ai-design.md` |
 | Piani | `docs/superpowers/plans/` — fase 1 backend (completata), fase 2 frontend (pagine fatte, verifica di integrazione non fatta), fase 3 ML/infra (non iniziata) |
 | Registro esecuzione fase 1 | `.superpowers/sdd/2026-10-23-sentinel-phase1-backend/` (progress, decisioni R1–R6, review, final-fix-report) |
-| Vecchio codice | Resta in `File piattaforma per mediaminer`, non toccato. Non serve al rebuild. |
+| Vecchio codice | Resta in `File piattaforma (vecchio prototipo)`, non toccato. Non serve al rebuild. |
 
 ## Comandi eseguiti il 09/11/2026
 

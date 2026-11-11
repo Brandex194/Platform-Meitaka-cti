@@ -1,4 +1,4 @@
-> **Documento storico.** Si riferisce al vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma per mediaminer`), sostituito dal rebuild iniziato il 23/10/2026. È l'analisi da cui è nato il rebuild; la verifica punto per punto dei 10 difetti nel nuovo codice è in `docs/STATO-PROGETTO.md`. Conservato così com'era per riferimento; lo stato attuale è in `docs/STATO-PROGETTO.md`.
+> **Documento storico.** Si riferisce al vecchio codice di Sentinel AI (cartella `Desktop\File piattaforma (vecchio prototipo)`), sostituito dal rebuild iniziato il 23/10/2026. È l'analisi da cui è nato il rebuild; la verifica punto per punto dei 10 difetti nel nuovo codice è in `docs/STATO-PROGETTO.md`. Conservato così com'era per riferimento; lo stato attuale è in `docs/STATO-PROGETTO.md`.
 
 ---
 

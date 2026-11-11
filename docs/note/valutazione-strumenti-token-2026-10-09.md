@@ -1,7 +1,7 @@
 > **Aggiornamento 9 novembre 2026.** Cosa è cambiato da quando è stata scritta questa nota:
 > - Graphify è installato e in uso: `graphify-out/` nella cartella del rebuild contiene un grafo costruito il 03/11/2026 (793 nodi). Nella radice non c'è un `.graphifyignore`; oggi il repo non contiene `.env` né dati di clienti, ma va aggiunto prima di introdurre seed o fixture reali.
 > - Il rebuild è un repository git (branch `feature/phase1-backend`), quindi `graphify hook install` ora funziona.
-> - I percorsi sotto che puntano a `File piattaforma per mediaminer` vanno letti come `claude progetti\piattaforma cti`.
+> - I percorsi sotto che puntano a `File piattaforma (vecchio prototipo)` vanno letti come `claude progetti\piattaforma cti`.
 > - La cartella del rebuild non ha ancora `.claude/skills/`: gli skill di progetto proposti più sotto non sono stati creati. Lo skill di scoring andrebbe scritto solo dopo aver deciso quali formule valgono (vedi `docs/STATO-PROGETTO.md`).
 > - Per il lavoro del rebuild è stato usato il flusso superpowers (spec, piani, registro in `.superpowers/sdd/`).
 
@@ -85,7 +85,7 @@ In PowerShell:
 winget install astral-sh.uv
 uv tool install graphifyy
 # se "graphify" non viene trovato: uv tool update-shell, poi apri un nuovo terminale
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+cd "C:\percorso-progetto\piattaforma cti"
 ```
 
 Prima di costruire il grafo, crea `.graphifyignore` nella root del repo (sintassi `.gitignore`, `.gitignore` viene rispettato in automatico):

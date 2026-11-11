@@ -20,7 +20,7 @@ Servono circa 4 GB di RAM liberi.
 1. Apri Docker Desktop e aspetta che sia pronto.
 2. Apri PowerShell nella cartella del progetto:
    ```powershell
-   cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+   cd "C:\percorso-progetto\piattaforma cti"
    ```
 3. Lancia:
    ```powershell
@@ -34,7 +34,7 @@ La prima volta ci vogliono 5-10 minuti (scarica le immagini Docker e le librerie
 ### A mano, se lo script non va
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti\backend"
+cd "C:\percorso-progetto\piattaforma cti\backend"
 copy .env.example .env                 # solo la prima volta
 docker compose up -d --build
 docker compose ps                      # tutto "Up", tranne "migrate" che deve essere "Exited (0)"
@@ -136,7 +136,7 @@ copia il testo che esce, premi "Authorize" nella pagina e incollalo. Il token du
 ## 6. Spegnere
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti"
+cd "C:\percorso-progetto\piattaforma cti"
 powershell -ExecutionPolicy Bypass -File .\ferma-sentinel.ps1             # conserva i dati
 powershell -ExecutionPolicy Bypass -File .\ferma-sentinel.ps1 -Cancella   # cancella anche il database
 ```

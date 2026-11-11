@@ -7,7 +7,7 @@ Aggiornato il 9 novembre 2026, dopo l'aggiunta di `backend/Dockerfile` e del rea
 Serve Docker Desktop. Dalla cartella `backend`:
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti\backend"
+cd "C:\percorso-progetto\piattaforma cti\backend"
 copy .env.example .env
 docker compose up -d --build
 ```
@@ -62,7 +62,7 @@ docker compose down -v   # cancella anche il database
 ## Frontend
 
 ```powershell
-cd "C:\Users\lucab\OneDrive\Desktop\claude progetti\piattaforma cti\frontend"
+cd "C:\percorso-progetto\piattaforma cti\frontend"
 copy .env.example .env
 npm install
 npm run dev
