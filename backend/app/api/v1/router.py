@@ -16,7 +16,9 @@ from app.api.v1.routes import (
     integrations,
     intel,
     management,
+    ml,
     redteam,
+    siem,
     reports,
     scanner,
     score_rules,
@@ -48,5 +50,7 @@ for module in (
     attack,
     scanner,
     redteam,
+    ml,
+    siem,
 ):
     api_router.include_router(module.router)

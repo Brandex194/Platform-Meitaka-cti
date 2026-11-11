@@ -66,4 +66,12 @@ celery_app.conf.beat_schedule = {
         "task": "sentinel.tasks.risk_and_alert",
         "schedule": crontab(minute="4,9,14,19,24,29,34,39,44,49,54,59"),
     },
+    "rebuild-faiss-index": {
+        "task": "sentinel.rebuild_faiss_index",
+        "schedule": crontab(minute="*/30"),
+    },
+    "push-siem-feedback": {
+        "task": "sentinel.push_siem_feedback",
+        "schedule": crontab(minute="*/5"),
+    },
 }

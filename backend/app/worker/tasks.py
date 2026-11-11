@@ -185,6 +185,43 @@ def correlate() -> dict:
     return {"tenants": len(tenant_ids), "failures": failures}
 
 
+@celery_app.task(name="sentinel.rebuild_faiss_index")
+def rebuild_faiss_index() -> None:
+    """Rebuild FAISS IoC similarity index from all indicators in DB."""
+    import os
+
+    import sqlalchemy as sa
+
+    from app.db.models import Indicator
+    from app.ml.similarity import IocSimilarityIndex
+
+    faiss_path = os.getenv("FAISS_INDEX_PATH", "/data/faiss/ioc.index")
+    os.makedirs(os.path.dirname(faiss_path), exist_ok=True)
+
+    gen = bypass_session()
+    db = next(gen)
+    try:
+        values = db.execute(sa.select(Indicator.value)).scalars().all()
+    finally:
+        try:
+            next(gen)
+        except StopIteration:
+            pass
+
+    if not values:
+        return
+
+    idx = IocSimilarityIndex()
+    idx.add(list(values))
+    idx.save(faiss_path)
+
+
+@celery_app.task(name="sentinel.push_siem_feedback")
+def push_siem_feedback_task() -> None:
+    from app.siem.outbound import push_siem_feedback
+    push_siem_feedback()
+
+
 @celery_app.task(name="sentinel.tasks.risk_and_alert")
 def risk_and_alert() -> dict:
     tenant_ids = _all_tenant_ids()

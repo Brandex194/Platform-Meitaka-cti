@@ -38,7 +38,7 @@ def test_normalize_fires_before_enrich():
 
 
 def test_beat_schedule_has_all_tasks():
-    """All 10 scheduled task names are present in beat_schedule."""
+    """All scheduled task names are present in beat_schedule."""
     import app.worker.beat  # noqa: F401
     from app.worker.celery_app import celery_app
 
@@ -54,6 +54,8 @@ def test_beat_schedule_has_all_tasks():
         "enrich",
         "correlate",
         "risk_and_alert",
+        "rebuild-faiss-index",
+        "push-siem-feedback",
     }
     assert expected == set(sched.keys())
 
