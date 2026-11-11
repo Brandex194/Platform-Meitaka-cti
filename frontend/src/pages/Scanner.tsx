@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/auth/store'
+import { useForecast } from '@/api/hooks/useForecast'
+import { useSimilarIocs } from '@/api/hooks/useSimilarIocs'
 
 type Engine = 'tenable' | 'qualys' | 'nessus' | 'nuclei' | 'openvas'
-type Tab = 'profiles' | 'runs'
+type Tab = 'profiles' | 'runs' | 'ai'
 
 const ENGINES: { id: Engine; label: string; desc: string }[] = [
   { id: 'tenable', label: 'Tenable', desc: 'Nessus-based enterprise scanner' },
@@ -11,6 +13,67 @@ const ENGINES: { id: Engine; label: string; desc: string }[] = [
   { id: 'nuclei', label: 'Nuclei', desc: 'Open-source template-based scanner' },
   { id: 'openvas', label: 'OpenVAS', desc: 'Open Vulnerability Assessment System' },
 ]
+
+function AiInsights({ tenantId }: { tenantId: string }) {
+  const [iocQuery, setIocQuery] = useState('')
+  const [submitted, setSubmitted] = useState('')
+  const forecast = useForecast(tenantId, 7)
+  const similar = useSimilarIocs(submitted, 10)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-semibold mb-3 text-sm">Risk Score Forecast (next 7 days)</h3>
+        {forecast.isLoading && <p className="text-sm muted">Loading…</p>}
+        {forecast.data?.message && <p className="text-sm muted">{forecast.data.message}</p>}
+        {forecast.data?.forecast && forecast.data.forecast.length > 0 && (
+          <div className="flex items-end gap-1 h-16">
+            {forecast.data.forecast.map((v, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t"
+                style={{
+                  height: `${Math.round(v * 100)}%`,
+                  minHeight: 2,
+                  background: v > 0.7 ? '#ef4444' : v > 0.4 ? '#f59e0b' : '#22c55e',
+                }}
+                title={`Day ${i + 1}: ${(v * 100).toFixed(1)}%`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="font-semibold mb-3 text-sm">Similar IoC Search</h3>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="Enter IP, domain or hash…"
+            value={iocQuery}
+            onChange={(e) => setIocQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && setSubmitted(iocQuery)}
+          />
+          <button className="btn btn-primary" onClick={() => setSubmitted(iocQuery)}>
+            Search
+          </button>
+        </div>
+        {similar.isLoading && <p className="text-sm muted mt-2">Searching…</p>}
+        {similar.data?.message && <p className="text-sm muted mt-2">{similar.data.message}</p>}
+        {similar.data?.results && similar.data.results.length > 0 && (
+          <ul className="mt-3 space-y-1">
+            {similar.data.results.map((r) => (
+              <li key={r.value} className="flex justify-between text-sm rounded px-3 py-1.5" style={{ background: 'var(--bg2)' }}>
+                <span className="font-mono">{r.value}</span>
+                <span className="muted">{(r.score * 100).toFixed(1)}%</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function Scanner({ tenantId }: { tenantId: string }) {
   const { hasRole } = useAuthStore()
@@ -27,13 +90,13 @@ export function Scanner({ tenantId }: { tenantId: string }) {
       </div>
 
       <div className="flex gap-2" role="tablist">
-        {(['profiles', 'runs'] as Tab[]).map((t) => (
+        {([['profiles', 'Scan Profiles'], ['runs', 'Scan Runs'], ['ai', 'AI Insights']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t} role="tab" aria-selected={tab === t}
             className={tab === t ? 'btn btn-primary' : 'btn btn-ghost'}
             onClick={() => setTab(t)}
           >
-            {t === 'profiles' ? 'Scan Profiles' : 'Scan Runs'}
+            {label}
           </button>
         ))}
       </div>
@@ -77,6 +140,8 @@ export function Scanner({ tenantId }: { tenantId: string }) {
       {tab === 'runs' && (
         <p className="text-sm muted">No scan runs yet. Create a scan profile and trigger a run.</p>
       )}
+
+      {tab === 'ai' && <AiInsights tenantId={tenantId} />}
     </div>
   )
 }

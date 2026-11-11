@@ -28,6 +28,8 @@ import { useCases } from '@/api/hooks/useCases'
 import { useActors, useCreateActor, useUpdateActor, useDeleteActor } from '@/api/hooks/useActors'
 import { useCampaigns, useCreateCampaign, useUpdateCampaign, useDeleteCampaign } from '@/api/hooks/useCampaigns'
 import { useCorrelationEvents } from '@/api/hooks/useAnalysis'
+import { useForecast } from '@/api/hooks/useForecast'
+import { useSimilarIocs } from '@/api/hooks/useSimilarIocs'
 
 const T = 'tid'
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -55,6 +57,8 @@ const cases: [string, () => unknown, string][] = [
   ['correlation events', () => useCorrelationEvents(T), `/api/v1/tenants/${T}/correlation-events`],
   ['threat actors', () => useActors(), '/api/v1/threat-actors'],
   ['campaigns', () => useCampaigns(), '/api/v1/campaigns'],
+  ['ml forecast', () => useForecast(T), `/api/v1/ml/forecast?tenant_id=${T}&horizon=7`],
+  ['ml similar iocs', () => useSimilarIocs('1.2.3.4'), '/api/v1/ml/similar-iocs?value=1.2.3.4&k=10'],
 ]
 
 describe('API paths', () => {
